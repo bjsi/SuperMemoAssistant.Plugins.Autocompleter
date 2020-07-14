@@ -45,10 +45,10 @@ namespace SuperMemoAssistant.Plugins.Autocompleter
 
     }
 
-    public static List<IControlHtml> GetHtmlCtrls()
+    public static Dictionary<int, IControlHtml> GetHtmlCtrls()
     {
 
-      var ret = new List<IControlHtml>();
+      var ret = new Dictionary<int, IControlHtml>();
 
       var ctrlGroup = Svc.SM.UI.ElementWdw.ControlGroup;
       if (ctrlGroup.IsNull())
@@ -58,7 +58,7 @@ namespace SuperMemoAssistant.Plugins.Autocompleter
       {
         var htmlCtrl = ctrlGroup[i].AsHtml();
         if (!htmlCtrl.IsNull())
-          ret.Add(htmlCtrl);
+          ret.Add(i, htmlCtrl);
       }
 
       return ret;

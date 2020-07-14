@@ -8,6 +8,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Runtime.InteropServices;
+using System.Runtime.Remoting;
 using System.Text;
 using System.Threading.Tasks;
 using System.Windows;
@@ -266,13 +267,12 @@ namespace SuperMemoAssistant.Plugins.Autocompleter
 
             try
             {
+
               node.attachEvent(eventName, comEventObj);
+
             }
-            catch (Exception)
-            {
-              // Log
-              // Occasionally there is an access denied error.
-            }
+            catch (RemotingException) {  }
+            catch (UnauthorizedAccessException) { }
           }
         }
       }
@@ -311,7 +311,7 @@ namespace SuperMemoAssistant.Plugins.Autocompleter
     EventHandler<IHTMLControlEventArgs> EventHandler { get; }
   }
 
-  public class IHTMLControlEventArgs : RoutedEventArgs
+  public class IHTMLControlEventArgs
   {
     public IHTMLEventObj EventObj { get; set; }
     public int ControlIdx { get; set; }
