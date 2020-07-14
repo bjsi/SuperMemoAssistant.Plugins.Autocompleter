@@ -165,9 +165,8 @@ namespace SuperMemoAssistant.Plugins.Autocompleter
         if (text.IsNullOrEmpty())
           continue;
 
-        var words = SplitIntoWords(text);
-
-        words.ForEach(word => Words.Add(word, word));
+        SplitIntoWords(text)
+          ?.ForEach(word => Words.Add(word, word));
 
       }
     }
@@ -233,10 +232,15 @@ namespace SuperMemoAssistant.Plugins.Autocompleter
     private double GetWordWidth(string word, int fontSize, string fontName)
     {
 
+      if (word.IsNullOrEmpty() || fontSize < 0 || fontName.IsNullOrEmpty())
+        return -1;
+
       Font stringFont = new Font(fontName, fontSize);
-      SizeF stringSize = new SizeF();
-      stringSize = System.Windows.Forms.TextRenderer.MeasureText(word, stringFont);
-      return stringSize.Width;
+      var stringSize = System.Windows.Forms.TextRenderer.MeasureText(word, stringFont);
+      stringFont.Dispose();
+      return stringSize.IsNull()
+        ? -1
+        : stringSize.Width;
 
     }
 
@@ -260,9 +264,10 @@ namespace SuperMemoAssistant.Plugins.Autocompleter
 
           duplicate.moveStart("character", 1);
 
-          int fontsize = IEFontSizeToPixels[duplicate.QueryFontSize()];
+          var fontSizeIE = duplicate.QueryFontSize();
+          int fontSizePx = IEFontSizeToPixels[fontSizeIE];
           string fontname = duplicate.QueryFontName();
-          int width = (int)GetWordWidth(duplicate.text, fontsize, fontname);
+          int width = (int)GetWordWidth(duplicate.text, fontSizePx, fontname);
           word = new LastPartialWord(duplicate.text, width);
           break;
 
@@ -325,26 +330,25 @@ namespace SuperMemoAssistant.Plugins.Autocompleter
       var caretPos = CaretPos.EvaluateCaretPosition();
       int x = caretPos.X - word.Width + 3;
       int y = caretPos.Y;
+      int matchLength = word.Text.Length;
 
       Application.Current.Dispatcher.BeginInvoke((Action)(() =>
       {
 
         CurrentPopup = PopupEx.CreatePopup();
-        CurrentPopup.UpdatePopup(matches);
+        CurrentPopup.UpdatePopup(matches, matchLength);
         CurrentPopup.ShowPopup(matches.Count(), x, y, htmlDoc.body);
 
       }));
 
     }
 
-    // TODO: Add Config options for things like searching only within the current ctrl?
-    // TODO: case-insensitive search?
     private IEnumerable<string> FindMatchingWords(string word)
     {
 
       return word.IsNullOrEmpty()
         ? null
-        : Words.Retrieve(word);
+        : Words.Retrieve(word)?.Take(Config.MaxResults);
 
     }
 

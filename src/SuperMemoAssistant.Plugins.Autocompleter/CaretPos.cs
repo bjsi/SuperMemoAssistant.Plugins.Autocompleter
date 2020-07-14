@@ -12,10 +12,11 @@ namespace SuperMemoAssistant.Plugins.Autocompleter
   {
 
     /// <summary>
-    /// Evaluates Cursor Position with respect to client screen.
+    /// Evaluates Cursor Position
     /// </summary>
     public static Point EvaluateCaretPosition()
     {
+
       var caretPosition = new Point();
 
       var guiInfo = GetCaretPosition();
@@ -29,11 +30,15 @@ namespace SuperMemoAssistant.Plugins.Autocompleter
 
     private static GUITHREADINFO GetCaretPosition()
     {
+
       var guiInfo = new GUITHREADINFO();
+
       guiInfo.cbSize = (uint)Marshal.SizeOf(guiInfo);
 
       NativeMethods.GetGUIThreadInfo(0, out guiInfo);
+
       return guiInfo;
+
     }
 
   }

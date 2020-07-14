@@ -41,6 +41,10 @@ namespace SuperMemoAssistant.Plugins.Autocompleter
     [Field(Name = "Include extra space after insertion of selected menu item?")]
     public bool IncludeSpace { get; set; } = false;
 
+    // TODO:
+    [Field(Name = "Preloaded word list path")]
+    public bool PreloadedWordList { get; set; } = true;
+
     [JsonIgnore]
     public bool IsChanged { get; set; }
 

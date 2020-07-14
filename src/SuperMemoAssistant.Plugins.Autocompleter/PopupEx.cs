@@ -22,21 +22,27 @@ namespace SuperMemoAssistant.Plugins.Autocompleter
           return null;
 
         var doc = popup.document as IHTMLDocument2;
-        var body = doc?.body?.children as IHTMLElementCollection;
-        var children = body.Cast<IHTMLElement>()?.ToList();
+        var children = doc?.body?.children as IHTMLElementCollection;
+        var menuItems = children
+          ?.Cast<IHTMLElement>()
+          ?.Where(x => x.tagName.ToLower() == "div")
+          ?.ToList();
+
+        if (menuItems.IsNull() || menuItems.Count == 0)
+          return null;
 
         IHTMLElement selected = null;
 
-        for (int i = 0; i < children.Count; i++)
+        for (int i = 0; i < menuItems.Count; i++)
         {
-          var cur = children[i];
+          var cur = menuItems[i];
           if (cur.tagName.ToLower() != "div")
             continue;
 
           if ((int)cur.getAttribute("selected") != 1)
             continue;
 
-          selected = children[i];
+          selected = menuItems[i];
         }
 
         return selected;
@@ -102,15 +108,20 @@ namespace SuperMemoAssistant.Plugins.Autocompleter
           return;
 
         var doc = popup.document as IHTMLDocument2;
-        var body = doc?.body?.children as IHTMLElementCollection;
-        var children = body.Cast<IHTMLElement>()?.ToList();
+        var children = doc?.body?.children as IHTMLElementCollection;
+        var childDivs = children
+          ?.Cast<IHTMLElement>()
+          ?.Where(x => x.tagName.ToLower() == "div")
+          ?.ToList();
+
+        if (childDivs.IsNull() || childDivs.Count == 0)
+          return;
+
         int selIdx = -1;
 
-        for (int i = 0; i < children.Count; i++)
+        for (int i = 0; i < childDivs.Count; i++)
         {
-          var cur = children[i];
-          if (cur.tagName.ToLower() != "div")
-            continue;
+          var cur = childDivs[i];
 
           if ((int)cur.getAttribute("selected") != 1)
             continue;
@@ -121,19 +132,19 @@ namespace SuperMemoAssistant.Plugins.Autocompleter
 
         if (selIdx == -1)
         {
-          var next = children[0];
+          var next = childDivs[0];
           next.SelectMenuItem();
           return;
         }
         else if (selIdx > -1)
         {
 
-          var selected = children[selIdx];
+          var selected = childDivs[selIdx];
           selected.UnselectMenuItem();
 
           var prev = selIdx == 0
-            ? children[children.Count - 1]
-            : children[selIdx - 1];
+            ? childDivs[childDivs.Count - 1]
+            : childDivs[selIdx - 1];
 
           prev.SelectMenuItem();
 
@@ -153,15 +164,17 @@ namespace SuperMemoAssistant.Plugins.Autocompleter
           return;
 
         var doc = popup.document as IHTMLDocument2;
-        var body = doc?.body?.children as IHTMLElementCollection;
-        var children = body.Cast<IHTMLElement>()?.ToList();
+        var children = doc?.body?.children as IHTMLElementCollection;
+        var childDivs = children
+          ?.Cast<IHTMLElement>()
+          ?.Where(x => x.tagName.ToLower() == "div")
+          ?.ToList();
+
         int selIdx = -1;
 
-        for (int i = 0; i < children.Count; i++)
+        for (int i = 0; i < childDivs.Count; i++)
         {
-          var cur = children[i];
-          if (cur.tagName.ToLower() != "div")
-            continue;
+          var cur = childDivs[i];
 
           if ((int)cur.getAttribute("selected") != 1)
             continue;
@@ -172,18 +185,18 @@ namespace SuperMemoAssistant.Plugins.Autocompleter
 
         if (selIdx == -1)
         {
-          var prev = children[0];
+          var prev = childDivs[0];
           prev.SelectMenuItem();
           return;
         }
         else if (selIdx > -1)
         {
-          var selected = children[selIdx];
+          var selected = childDivs[selIdx];
           selected.UnselectMenuItem();
 
-          var next = selIdx == children.Count - 1
-            ? children[0]
-            : children[selIdx + 1];
+          var next = selIdx == childDivs.Count - 1
+            ? childDivs[0]
+            : childDivs[selIdx + 1];
 
           next.SelectMenuItem();
         }
@@ -237,7 +250,7 @@ namespace SuperMemoAssistant.Plugins.Autocompleter
     }
    
     // TODO: Requires dispatcher?
-    public static void UpdatePopup(this IHTMLPopup popup, IEnumerable<string> matches)
+    public static void UpdatePopup(this IHTMLPopup popup, IEnumerable<string> matches, int textLength)
     {
 
       try
@@ -259,8 +272,19 @@ namespace SuperMemoAssistant.Plugins.Autocompleter
         {
 
           var menuItem = doc.createElement("<div>");
+          menuItem.style.margin = "1px";
+          menuItem.style.height = "17px";
+
           menuItem.setAttribute("selected", 0);
-          menuItem.innerText = match;
+          menuItem.innerHTML = "<span style='color: orange;'>" +
+                                 "<B>" +
+                                   match.Substring(0, textLength) +
+                                 "</B>" +
+                               "</span>" +
+                               "<span style='color: grey'>" +
+                                 match.Substring(textLength) +
+                               "</span>";
+
           body.appendChild(((IHTMLDOMNode)menuItem));
 
         }
@@ -275,7 +299,7 @@ namespace SuperMemoAssistant.Plugins.Autocompleter
       try
       {
 
-        int height = (matches * 17) + 5;
+        int height = (matches * 17) + 10;
         popup.Show(x, y, 150, height, body);
 
       }
