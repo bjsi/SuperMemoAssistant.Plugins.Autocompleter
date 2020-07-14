@@ -11,8 +11,6 @@ namespace SuperMemoAssistant.Plugins.Autocompleter
   public static class CaretPos
   {
 
-    // TODO: Store GUITHREAD INFO here?
-
     /// <summary>
     /// Evaluates Cursor Position with respect to client screen.
     /// </summary>

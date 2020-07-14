@@ -41,6 +41,7 @@ namespace SuperMemoAssistant.Plugins.Autocompleter
   using System.Threading;
   using System.Threading.Tasks;
   using System.Windows;
+  using System.Windows.Input;
   using Gma.DataStructures.StringSearch;
   using mshtml;
   using SuperMemoAssistant.Extensions;
@@ -104,6 +105,8 @@ namespace SuperMemoAssistant.Plugins.Autocompleter
         if (throttling) return;
         handler(s, e);
         throttling = true;
+
+        // TODO: Add await?
         Task.Delay(throttle).ContinueWith(_ => throttling = false);
       };
     }
@@ -262,6 +265,13 @@ namespace SuperMemoAssistant.Plugins.Autocompleter
 
       var ev = e.EventObj;
 
+      var key = ev.keyCode;
+      if (key == 27) // Esc
+      {
+        CurrentPopup?.Hide();
+        return;
+      }
+
       var selObj = ContentUtils.GetSelectionObject();
       if (selObj.IsNull() || !selObj.text.IsNullOrEmpty())
         return;
@@ -275,6 +285,12 @@ namespace SuperMemoAssistant.Plugins.Autocompleter
 
       IEnumerable<string> matches = FindMatchingWords(word.Text);
       if (matches.IsNull() || !matches.Any())
+      {
+        CurrentPopup?.Hide();
+        return;
+      }
+
+      if (matches.Count() == 1 && matches.First() == word.Text)
       {
         CurrentPopup?.Hide();
         return;
