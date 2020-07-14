@@ -48,7 +48,9 @@ namespace SuperMemoAssistant.Plugins.Autocompleter
   using SuperMemoAssistant.Interop.SuperMemo.Content.Controls;
   using SuperMemoAssistant.Interop.SuperMemo.Core;
   using SuperMemoAssistant.Services;
+  using SuperMemoAssistant.Services.IO.HotKeys;
   using SuperMemoAssistant.Services.Sentry;
+  using SuperMemoAssistant.Services.UI.Configuration;
   using SuperMemoAssistant.Sys.Remoting;
 
 
@@ -77,6 +79,11 @@ namespace SuperMemoAssistant.Plugins.Autocompleter
     public AutocompleterCfg Config;
     public IHTMLPopup CurrentPopup { get; set; }
 
+    private static readonly char[] PunctuationAndSymbols = new char[]
+    {
+      '.', '!', '?', ')', '@', '#', '$', '%', '^', '&', '*', '(', ')', '-', '_', '+', '=', '\\', '/', '<', '>', ','
+    };
+
     private static readonly Dictionary<int, int> IEFontSizeToPixels = new Dictionary<int, int>
     {
       { 1, 8 },
@@ -100,14 +107,14 @@ namespace SuperMemoAssistant.Plugins.Autocompleter
     TimeSpan throttle)
     {
       bool throttling = false;
-      return (s, e) =>
+      return async (s, e) =>
       {
         if (throttling) return;
         handler(s, e);
         throttling = true;
 
-        // TODO: Add await?
-        Task.Delay(throttle).ContinueWith(_ => throttling = false);
+        // TODO: Is it useful to have await here?
+        await Task.Delay(throttle).ContinueWith(_ => throttling = false);
       };
     }
 
@@ -130,6 +137,12 @@ namespace SuperMemoAssistant.Plugins.Autocompleter
 
       FindWords();
 
+    }
+
+    /// <inheritdoc />
+    public override void ShowSettings()
+    {
+      ConfigurationWindow.ShowAndActivate(HotKeyManager.Instance, Config);
     }
 
     private void FindWords()
@@ -181,6 +194,7 @@ namespace SuperMemoAssistant.Plugins.Autocompleter
             ?.Split((char[])null)  // split on whitespace
             ?.Where(word => !word.IsNullOrEmpty())
             ?.Where(word => word.Length > 3)
+            ?.Select(word => word.Trim(PunctuationAndSymbols))
             ?.Where(word => word.All(c => char.IsLetterOrDigit(c))) // filter invalid words
             ?.ToHashSet();
 
@@ -200,7 +214,9 @@ namespace SuperMemoAssistant.Plugins.Autocompleter
       Events.OnKeyDownEvent += Events_OnKeyDownEvent;
 
       // Throttles KeyUp to minimize the number of updates during continuous typing
-      Events.OnKeyUpEvent += CreateThrottledEventHandler((s, e) => Events_OnKeyUpEvent(s, e), TimeSpan.FromSeconds(0.2));
+      Events.OnKeyUpEvent += CreateThrottledEventHandler(
+        (s, e) => Events_OnKeyUpEvent(s, e),
+                  TimeSpan.FromSeconds(0.28));
     }
 
     public class LastPartialWord
@@ -271,6 +287,12 @@ namespace SuperMemoAssistant.Plugins.Autocompleter
         CurrentPopup?.Hide();
         return;
       }
+      else if (key == 39) // Right Arrow
+        return;
+      else if (key == 38) // Up Arrow
+        return;
+      else if (key == 40) // Down Arrow 
+        return;
 
       var selObj = ContentUtils.GetSelectionObject();
       if (selObj.IsNull() || !selObj.text.IsNullOrEmpty())
@@ -337,34 +359,42 @@ namespace SuperMemoAssistant.Plugins.Autocompleter
 
       bool esc = ev.keyCode == 27;
       bool tab = ev.keyCode == 9;
+
       bool arrowUp = ev.keyCode == 38;
       bool arrowDown = ev.keyCode == 40;
+      bool arrowRight = ev.keyCode == 39;
 
       if (esc)
       {
-        CurrentPopup.Hide();
-        CurrentPopup = null;
+        CurrentPopup?.Hide();
       }
 
-      // Convert to static methods
-      else if (tab)
+      else if (arrowRight)
       {
-        //SelectCurrentMenuItem(CurrentPopup);
+
+        if (CurrentPopup.InsertCurrentSelection())
+        {
+          CurrentPopup?.Hide();
+          ev.returnValue = false;
+        }
+
       }
       else if (arrowDown)
       {
-        //HighlightNextMenuItem(CurrentPopup);
+
+        // Need to call show here
+        CurrentPopup?.SelectNextMenuItem();
+        ev.returnValue = false;
+
       }
       else if (arrowUp)
       {
-        //HighlightPrevMenuItem(CurrentPopup);
+
+        CurrentPopup?.SelectPrevMenuItem();
+        ev.returnValue = false;
+
       }
 
-    }
-
-    /// <inheritdoc />
-    public override void ShowSettings()
-    {
     }
 
     #endregion

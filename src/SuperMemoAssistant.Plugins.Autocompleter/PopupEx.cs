@@ -12,7 +12,139 @@ namespace SuperMemoAssistant.Plugins.Autocompleter
   public static class PopupEx
   {
 
-    public static void SelectFirstMenuItem(this IHTMLPopup popup)
+    public static IHTMLElement GetSelectedMenuItem(this IHTMLPopup popup)
+    {
+
+      try
+      {
+
+        if (popup.IsNull())
+          return null;
+
+        var doc = popup.document as IHTMLDocument2;
+        var body = doc?.body?.children as IHTMLElementCollection;
+        var children = body.Cast<IHTMLElement>()?.ToList();
+
+        IHTMLElement selected = null;
+
+        for (int i = 0; i < children.Count; i++)
+        {
+          var cur = children[i];
+          if (cur.tagName.ToLower() != "div")
+            continue;
+
+          if ((int)cur.getAttribute("selected") != 1)
+            continue;
+
+          selected = children[i];
+        }
+
+        return selected;
+
+      }
+      catch (RemotingException) { }
+      catch (UnauthorizedAccessException) { }
+
+      return null;
+
+    }
+
+    public static bool InsertCurrentSelection(this IHTMLPopup popup)
+    {
+
+      try
+      {
+
+        if (popup.IsNull())
+          return false;
+
+        var selected = popup.GetSelectedMenuItem();
+        if (selected.IsNull())
+          return false;
+
+        var selObj = ContentUtils.GetSelectionObject();
+        if (selObj.IsNull())
+          return false;
+
+        // Replace the last partial word
+        while (selObj.moveStart("character", -1) == -1)
+        {
+
+          char first = selObj.text.First();
+          if (char.IsWhiteSpace(first))
+          {
+            selObj.moveStart("character", 1);
+            break;
+          }
+          // Break if word contains punctuation
+          else if (char.IsPunctuation(first))
+            break;
+        }
+
+        selObj.text = selected.innerText;
+        return true;
+
+      }
+      catch (RemotingException) { }
+      catch (UnauthorizedAccessException) { }
+
+      return false;
+
+    }
+
+    public static void SelectPrevMenuItem(this IHTMLPopup popup)
+    {
+
+      try
+      {
+
+        if (popup.IsNull())
+          return;
+
+        var doc = popup.document as IHTMLDocument2;
+        var body = doc?.body?.children as IHTMLElementCollection;
+        var children = body.Cast<IHTMLElement>()?.ToList();
+        int selIdx = -1;
+
+        for (int i = 0; i < children.Count; i++)
+        {
+          var cur = children[i];
+          if (cur.tagName.ToLower() != "div")
+            continue;
+
+          if ((int)cur.getAttribute("selected") != 1)
+            continue;
+
+          selIdx = i;
+          break;
+        }
+
+        if (selIdx == -1)
+        {
+          var next = children[0];
+          next.SelectMenuItem();
+          return;
+        }
+        else if (selIdx > -1)
+        {
+
+          var selected = children[selIdx];
+          selected.UnselectMenuItem();
+
+          var prev = selIdx == 0
+            ? children[children.Count - 1]
+            : children[selIdx - 1];
+
+          prev.SelectMenuItem();
+
+        }
+      }
+      catch (RemotingException) { }
+      catch (UnauthorizedAccessException) { }
+
+    }
+
+    public static void SelectNextMenuItem(this IHTMLPopup popup)
     {
       try
       {
@@ -21,10 +153,64 @@ namespace SuperMemoAssistant.Plugins.Autocompleter
           return;
 
         var doc = popup.document as IHTMLDocument2;
+        var body = doc?.body?.children as IHTMLElementCollection;
+        var children = body.Cast<IHTMLElement>()?.ToList();
+        int selIdx = -1;
 
+        for (int i = 0; i < children.Count; i++)
+        {
+          var cur = children[i];
+          if (cur.tagName.ToLower() != "div")
+            continue;
+
+          if ((int)cur.getAttribute("selected") != 1)
+            continue;
+
+          selIdx = i;
+          break;
+        }
+
+        if (selIdx == -1)
+        {
+          var prev = children[0];
+          prev.SelectMenuItem();
+          return;
+        }
+        else if (selIdx > -1)
+        {
+          var selected = children[selIdx];
+          selected.UnselectMenuItem();
+
+          var next = selIdx == children.Count - 1
+            ? children[0]
+            : children[selIdx + 1];
+
+          next.SelectMenuItem();
+        }
       }
       catch (RemotingException) { }
       catch (UnauthorizedAccessException) { }
+    }
+
+    private static void UnselectMenuItem(this IHTMLElement el)
+    {
+
+      if (el.IsNull())
+        return;
+
+      el.setAttribute("selected", 0);
+      el.style.background = "white";
+
+    }
+
+    private static void SelectMenuItem(this IHTMLElement el)
+    {
+
+      if (el.IsNull())
+        return;
+
+      el.setAttribute("selected", 1);
+      el.style.background = "lightblue";
 
     }
 
@@ -73,6 +259,7 @@ namespace SuperMemoAssistant.Plugins.Autocompleter
         {
 
           var menuItem = doc.createElement("<div>");
+          menuItem.setAttribute("selected", 0);
           menuItem.innerText = match;
           body.appendChild(((IHTMLDOMNode)menuItem));
 

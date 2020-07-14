@@ -38,6 +38,9 @@ namespace SuperMemoAssistant.Plugins.Autocompleter
     [Field(Name = "Max Results?")]
     public int MaxResults { get; set; } = 10;
 
+    [Field(Name = "Include extra space after insertion of selected menu item?")]
+    public bool IncludeSpace { get; set; } = false;
+
     [JsonIgnore]
     public bool IsChanged { get; set; }
 

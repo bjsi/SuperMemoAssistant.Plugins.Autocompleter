@@ -34,20 +34,8 @@ namespace SuperMemoAssistant.Plugins.Autocompleter
 
   public static class NativeMethods
   {
-    /*- Retrieves Id of the thread that created the specified window -*/
-    [DllImport("user32.dll", SetLastError = true)]
-    static extern uint GetWindowThreadProcessId(int hWnd, out uint lpdwProcessId);
-
     /*- Retrieves information about active window or any specific GUI thread -*/
     [DllImport("user32.dll", EntryPoint = "GetGUIThreadInfo")]
     public static extern bool GetGUIThreadInfo(uint tId, out GUITHREADINFO threadInfo);
-
-    /*- Retrieves Handle to the ForeGroundWindow -*/
-    [DllImport("user32.dll")]
-    public static extern IntPtr GetForegroundWindow();
-
-    /*- Converts window specific point to screen specific -*/
-    [DllImport("user32.dll")]
-    public static extern bool ClientToScreen(IntPtr hWnd, out Point position);
   }
 }

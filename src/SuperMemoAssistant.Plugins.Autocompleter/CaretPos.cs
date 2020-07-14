@@ -18,13 +18,11 @@ namespace SuperMemoAssistant.Plugins.Autocompleter
     {
       var caretPosition = new Point();
 
-      // Fetch GUITHREADINFO
       var guiInfo = GetCaretPosition();
 
-      caretPosition.X = (int)guiInfo.rcCaret.Left; // + 25;
-      caretPosition.Y = (int)guiInfo.rcCaret.Bottom; // + 25;
+      caretPosition.X = (int)guiInfo.rcCaret.Left;
+      caretPosition.Y = (int)guiInfo.rcCaret.Bottom;
 
-      //NativeMethods.ClientToScreen(guiInfo.hwndCaret, out caretPosition);
       return caretPosition;
 
     }
@@ -34,7 +32,6 @@ namespace SuperMemoAssistant.Plugins.Autocompleter
       var guiInfo = new GUITHREADINFO();
       guiInfo.cbSize = (uint)Marshal.SizeOf(guiInfo);
 
-      // Get GuiThreadInfo into guiInfo
       NativeMethods.GetGUIThreadInfo(0, out guiInfo);
       return guiInfo;
     }
