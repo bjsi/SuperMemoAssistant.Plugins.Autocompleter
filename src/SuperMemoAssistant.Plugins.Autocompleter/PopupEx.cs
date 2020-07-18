@@ -55,8 +55,10 @@ namespace SuperMemoAssistant.Plugins.Autocompleter
 
     }
 
-    public static bool InsertCurrentSelection(this IHTMLPopup popup)
+    public static bool InsertCurrentSelection(this IHTMLPopup popup, out string word)
     {
+
+      word = null;
 
       try
       {
@@ -87,6 +89,7 @@ namespace SuperMemoAssistant.Plugins.Autocompleter
             break;
         }
 
+        word = selected.innerText;
         selObj.text = selected.innerText;
         return true;
 
