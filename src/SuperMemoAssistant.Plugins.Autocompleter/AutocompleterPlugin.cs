@@ -38,10 +38,12 @@ namespace SuperMemoAssistant.Plugins.Autocompleter
   using System.Linq;
   using System.Reactive.Linq;
   using System.Runtime.InteropServices;
+  using System.Runtime.Remoting;
   using System.Threading;
   using System.Threading.Tasks;
   using System.Windows;
   using System.Windows.Input;
+  using Anotar.Serilog;
   using Gma.DataStructures.StringSearch;
   using mshtml;
   using SuperMemoAssistant.Extensions;
@@ -87,14 +89,19 @@ namespace SuperMemoAssistant.Plugins.Autocompleter
     private Trie<string> CurrentSuggestionSource { get; set; }
 
     /// <summary>
-    /// Dictionary words + current element words.
+    /// Optional converter dictionary used to convert accepted menu items.
     /// </summary>
-    private Trie<string> DefaultSuggestionSource { get; set; }
+    private Dictionary<string, string> AcceptedSuggestionConverter { get; set; }
 
     /// <summary>
-    /// 
+    /// Dictionary words + current element words.
     /// </summary>
-    public Trie<string> TrieOfWords = new Trie<string>();
+    public Trie<string> DefaultSuggestionSource = new Trie<string>();
+
+    /// <summary>
+    /// Name of the plugin that provided the suggestion words.
+    /// </summary>
+    private string SuggestionSourcePluginName { get; set; }
 
     /// <summary>
     /// Populated on ElementChanged Event
@@ -161,6 +168,9 @@ namespace SuperMemoAssistant.Plugins.Autocompleter
 
       PublishService<IAutocompleterSvc, AutocompleterSvc>(_autocompleterSvc);
 
+      CurrentSuggestionSource = DefaultSuggestionSource;
+      SuggestionSourcePluginName = Name;
+
       Svc.SM.UI.ElementWdw.OnElementChanged += new ActionProxy<SMDisplayedElementChangedEventArgs>(ElementWdw_OnElementChanged);
 
       _ = Task.Factory.StartNew(DispatchEvents, CancellationToken.None, TaskCreationOptions.LongRunning, TaskScheduler.Default);
@@ -196,7 +206,7 @@ namespace SuperMemoAssistant.Plugins.Autocompleter
     private void FindWords()
     {
 
-      TrieOfWords = new Trie<string>();
+      DefaultSuggestionSource = new Trie<string>();
 
       var htmlCtrls = ContentUtils.GetHtmlCtrls();
       if (htmlCtrls.IsNull() || !htmlCtrls.Any())
@@ -217,7 +227,7 @@ namespace SuperMemoAssistant.Plugins.Autocompleter
         foreach (var word in words)
         {
           InitialWordSet.Add(word);
-          TrieOfWords.Add(word, word);
+          DefaultSuggestionSource.Add(word, word);
         }
 
       }
@@ -234,7 +244,7 @@ namespace SuperMemoAssistant.Plugins.Autocompleter
 
       var words = SplitIntoWords(text);
       words.ExceptWith(InitialWordSet);
-      words.ForEach(w => TrieOfWords.Add(w, w));
+      words.ForEach(w => DefaultSuggestionSource.Add(w, w));
       InitialWordSet.UnionWith(words);
 
     }
@@ -419,7 +429,63 @@ namespace SuperMemoAssistant.Plugins.Autocompleter
 
       return word.IsNullOrEmpty()
         ? null
-        : TrieOfWords.Retrieve(word)?.Take(Config.MaxResults);
+        : DefaultSuggestionSource.Retrieve(word)?.Take(Config.MaxResults);
+
+    }
+
+    public bool InsertCurrentSelection(IHTMLPopup popup, out string word)
+    {
+
+      word = null;
+
+      try
+      {
+
+        if (popup.IsNull())
+          return false;
+
+        var selected = popup.GetSelectedMenuItem();
+        if (selected.IsNull())
+          return false;
+
+        var selObj = ContentUtils.GetSelectionObject();
+        if (selObj.IsNull())
+          return false;
+
+        // Replace the last partial word
+        while (selObj.moveStart("character", -1) == -1)
+        {
+
+          char first = selObj.text.First();
+          if (char.IsWhiteSpace(first))
+          {
+            selObj.moveStart("character", 1);
+            break;
+          }
+          // Break if word contains punctuation
+          else if (char.IsPunctuation(first))
+            break;
+        }
+        
+        word = selected.innerText;
+
+        if (!AcceptedSuggestionConverter.IsNull())
+        {
+          if (!AcceptedSuggestionConverter.TryGetValue(word, out word))
+          {
+            LogTo.Warning($"Failed to find {word} in AcceptedSuggestionConverter dictionary");
+            return false;
+          }
+        }
+
+        selObj.text = word;
+        return true;
+
+      }
+      catch (RemotingException) { }
+      catch (UnauthorizedAccessException) { }
+
+      return false;
 
     }
 
@@ -429,7 +495,7 @@ namespace SuperMemoAssistant.Plugins.Autocompleter
       var ev = e.EventObj;
 
       bool esc = ev.keyCode == 27;
-      bool tab = ev.keyCode == 9; // Doesn't work :(
+      bool tab = ev.keyCode == 9; // Doesn't work
 
       bool arrowUp = ev.keyCode == 38;
       bool arrowDown = ev.keyCode == 40;
@@ -452,9 +518,9 @@ namespace SuperMemoAssistant.Plugins.Autocompleter
         else if (arrowRight)
         {
 
-          if (CurrentPopup.InsertCurrentSelection(out var word))
+          if (InsertCurrentSelection(CurrentPopup, out var word))
           {
-            _autocompleterSvc?.InvokeSuggestionAccepted(word);
+            _autocompleterSvc?.InvokeSuggestionAccepted(word, SuggestionSourcePluginName);
             CurrentPopup?.Hide();
           }
 
@@ -469,13 +535,28 @@ namespace SuperMemoAssistant.Plugins.Autocompleter
 
     }
 
-    public bool SetWordSuggestionSource(Trie<string> TrieOfWords)
+
+    public bool SetWordSuggestionSource(string pluginName, Trie<string> TrieOfWords)
     {
 
       if (TrieOfWords.IsNull())
         return false;
 
       CurrentSuggestionSource = TrieOfWords;
+      SuggestionSourcePluginName = pluginName;
+      return true;
+
+    }
+
+    public bool SetWordSuggestionSource(string pluginName, Trie<string> TrieOfWords, Dictionary<string, string> Converter)
+    {
+
+      if (TrieOfWords.IsNull() || Converter.IsNull())
+        return false;
+
+      CurrentSuggestionSource = TrieOfWords;
+      AcceptedSuggestionConverter = Converter;
+      SuggestionSourcePluginName = pluginName;
       return true;
 
     }
@@ -484,6 +565,8 @@ namespace SuperMemoAssistant.Plugins.Autocompleter
     {
 
       CurrentSuggestionSource = DefaultSuggestionSource;
+      SuggestionSourcePluginName = Name;
+      AcceptedSuggestionConverter = null;
 
     }
 

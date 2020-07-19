@@ -7,11 +7,13 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "_Solution files", "_Solutio
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Plugins", "Plugins", "{0E15CD75-784D-4413-A6F2-E09F64AFAA85}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SuperMemoAssistant.Plugins.Autocompleter", "src\SuperMemoAssistant.Plugins.Autocompleter\SuperMemoAssistant.Plugins.Autocompleter.csproj", "{180B62D5-358F-49D2-A22E-F517A03CD2C5}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "SuperMemoAssistant.Plugins.Autocompleter", "src\SuperMemoAssistant.Plugins.Autocompleter\SuperMemoAssistant.Plugins.Autocompleter.csproj", "{180B62D5-358F-49D2-A22E-F517A03CD2C5}"
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Tests", "Tests", "{DB4AD64E-9DDF-4652-97A5-32023353913E}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SuperMemoAssistant.Plugins.Autocompleter.Tests", "src\SuperMemoAssistant.Plugins.Autocompleter.Tests\SuperMemoAssistant.Plugins.Autocompleter.Tests.csproj", "{1410E0D5-2624-4417-80B2-975E4ECA05B9}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "SuperMemoAssistant.Plugins.Autocompleter.Tests", "src\SuperMemoAssistant.Plugins.Autocompleter.Tests\SuperMemoAssistant.Plugins.Autocompleter.Tests.csproj", "{1410E0D5-2624-4417-80B2-975E4ECA05B9}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "SuperMemoAssistant.Plugins.Autocompleter.Interop", "..\Autocompleter.Interop\src\SuperMemoAssistant.Plugins.Autocompleter.Interop\SuperMemoAssistant.Plugins.Autocompleter.Interop.csproj", "{478200CC-1812-400C-98B8-20F7AD42D0F5}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -42,6 +44,16 @@ Global
 		{1410E0D5-2624-4417-80B2-975E4ECA05B9}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{1410E0D5-2624-4417-80B2-975E4ECA05B9}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{1410E0D5-2624-4417-80B2-975E4ECA05B9}.Release|Any CPU.Build.0 = Release|Any CPU
+		{478200CC-1812-400C-98B8-20F7AD42D0F5}.1. Alpha (Debug)|Any CPU.ActiveCfg = Debug|Any CPU
+		{478200CC-1812-400C-98B8-20F7AD42D0F5}.1. Alpha (Debug)|Any CPU.Build.0 = Debug|Any CPU
+		{478200CC-1812-400C-98B8-20F7AD42D0F5}.2. Beta (Release)|Any CPU.ActiveCfg = Release|Any CPU
+		{478200CC-1812-400C-98B8-20F7AD42D0F5}.2. Beta (Release)|Any CPU.Build.0 = Release|Any CPU
+		{478200CC-1812-400C-98B8-20F7AD42D0F5}.3. Stable (Release)|Any CPU.ActiveCfg = Release|Any CPU
+		{478200CC-1812-400C-98B8-20F7AD42D0F5}.3. Stable (Release)|Any CPU.Build.0 = Release|Any CPU
+		{478200CC-1812-400C-98B8-20F7AD42D0F5}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{478200CC-1812-400C-98B8-20F7AD42D0F5}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{478200CC-1812-400C-98B8-20F7AD42D0F5}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{478200CC-1812-400C-98B8-20F7AD42D0F5}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -49,6 +61,7 @@ Global
 	GlobalSection(NestedProjects) = preSolution
 		{180B62D5-358F-49D2-A22E-F517A03CD2C5} = {0E15CD75-784D-4413-A6F2-E09F64AFAA85}
 		{1410E0D5-2624-4417-80B2-975E4ECA05B9} = {DB4AD64E-9DDF-4652-97A5-32023353913E}
+		{478200CC-1812-400C-98B8-20F7AD42D0F5} = {0E15CD75-784D-4413-A6F2-E09F64AFAA85}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {5F12E2C9-E9BC-485E-AB73-0EF3029E2895}

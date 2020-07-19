@@ -55,51 +55,6 @@ namespace SuperMemoAssistant.Plugins.Autocompleter
 
     }
 
-    public static bool InsertCurrentSelection(this IHTMLPopup popup, out string word)
-    {
-
-      word = null;
-
-      try
-      {
-
-        if (popup.IsNull())
-          return false;
-
-        var selected = popup.GetSelectedMenuItem();
-        if (selected.IsNull())
-          return false;
-
-        var selObj = ContentUtils.GetSelectionObject();
-        if (selObj.IsNull())
-          return false;
-
-        // Replace the last partial word
-        while (selObj.moveStart("character", -1) == -1)
-        {
-
-          char first = selObj.text.First();
-          if (char.IsWhiteSpace(first))
-          {
-            selObj.moveStart("character", 1);
-            break;
-          }
-          // Break if word contains punctuation
-          else if (char.IsPunctuation(first))
-            break;
-        }
-
-        word = selected.innerText;
-        selObj.text = selected.innerText;
-        return true;
-
-      }
-      catch (RemotingException) { }
-      catch (UnauthorizedAccessException) { }
-
-      return false;
-
-    }
 
     public static void SelectPrevMenuItem(this IHTMLPopup popup)
     {
