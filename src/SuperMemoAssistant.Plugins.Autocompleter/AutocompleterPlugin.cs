@@ -55,6 +55,7 @@ namespace SuperMemoAssistant.Plugins.Autocompleter
   using SuperMemoAssistant.Services.Sentry;
   using SuperMemoAssistant.Services.UI.Configuration;
   using SuperMemoAssistant.Sys.Remoting;
+  using static SuperMemoAssistant.Plugins.Autocompleter.HtmlEventEx;
 
 
   // ReSharper disable once UnusedMember.Global
@@ -69,7 +70,6 @@ namespace SuperMemoAssistant.Plugins.Autocompleter
 
     #endregion
 
-
     #region Properties Impl - Public
 
     /// <inheritdoc />
@@ -77,26 +77,28 @@ namespace SuperMemoAssistant.Plugins.Autocompleter
 
     /// <inheritdoc />
     public override bool HasSettings => true;
-    public HTMLControlEvents Events { get; set; }
-
-
-    private AutocompleterSvc _autocompleterSvc = new AutocompleterSvc();
+    
+    /// <summary>
+    /// Autocompleter service published and available for other plugins
+    /// </summary>
+    public AutocompleterSvc _autocompleterSvc = new AutocompleterSvc();
 
     /// <summary>
     /// Either points to the DefaultSuggestionSource, or a plugin can use the service
     /// to point at a custom source.
     /// </summary>
-    private Trie<string> CurrentSuggestionSource { get; set; }
+    private Trie<string> CurrentSuggestionSource;
 
     /// <summary>
     /// Optional converter dictionary used to convert accepted menu items.
+    /// Useful for expanding snippets.
     /// </summary>
     private Dictionary<string, string> AcceptedSuggestionConverter { get; set; }
 
     /// <summary>
     /// Dictionary words + current element words.
     /// </summary>
-    public Trie<string> DefaultSuggestionSource = new Trie<string>();
+    public Trie<string> DefaultSuggestionSource { get; set; }
 
     /// <summary>
     /// Name of the plugin that provided the suggestion words.
@@ -104,44 +106,56 @@ namespace SuperMemoAssistant.Plugins.Autocompleter
     private string SuggestionSourcePluginName { get; set; }
 
     /// <summary>
+    /// Serialized Trie<string> of the top 10k English words by frequency > 3 letters:
+    /// </summary>
+    private string BaseSuggestionSource => CreateBaseSuggestionSource();
+
+    // TODO: Does this actually get used?
+
+    /// <summary>
     /// Populated on ElementChanged Event
     /// </summary>
     public HashSet<string> InitialWordSet = new HashSet<string>();
 
-    public IHTMLPopup CurrentPopup { get; set; }
+    /// <summary>
+    /// The current popup window instance.
+    /// </summary>
+    public HtmlPopup CurrentPopup { get; set; }
 
     public AutocompleterCfg Config;
 
-    private static readonly char[] PunctuationAndSymbols = new char[]
-    {
-      '.', '!', '?', ')', '@', '#', '$', '%', '^', '&', '*', '(', ')', '-', '_', '+', '=', '\\', '/', '<', '>', ','
-    };
-
-    private static readonly Dictionary<int, int> IEFontSizeToPixels = new Dictionary<int, int>
-    {
-      { 1, 8 },
-      { 2, 10 },
-      { 3, 12 },
-      { 4, 14 },
-      { 5, 18 },
-      { 6, 24 },
-      { 7, 36 }
-    };
+    //
+    // Html events
+    private HtmlEvent _htmlKeydownEvent { get; set; }
+    private HtmlEvent _htmlKeyupEvent { get; set; }
 
     /// <summary>
     /// Queue for event handler code to be run not on the UI thread
     /// </summary>
-    private EventfulConcurrentQueue<Action> EventQueue = new EventfulConcurrentQueue<Action>();
+    private EventfulConcurrentQueue<Action> JobQueue = new EventfulConcurrentQueue<Action>();
+
+    /// <summary>
+    /// True after SMA / SM is closed and dispose is called.
+    /// </summary>
+    private bool HasExited = false;
 
     #endregion
+
+    /// <inheritdoc />
+    public override void ShowSettings()
+    {
+      ConfigurationWindow.ShowAndActivate(HotKeyManager.Instance, Config);
+    }
 
     private void LoadConfig()
     {
       Config = Svc.Configuration.Load<AutocompleterCfg>() ?? new AutocompleterCfg();
     }
 
-    private EventHandler<IHTMLControlEventArgs> CreateThrottledEventHandler(
-    EventHandler<IHTMLControlEventArgs> handler,
+
+    // TODO: Change to ReactiveEx
+    private EventHandler<IControlHtmlEventArgs> CreateThrottledEventHandler(
+    EventHandler<IControlHtmlEventArgs> handler,
     TimeSpan throttle)
     {
       bool throttling = false;
@@ -164,59 +178,160 @@ namespace SuperMemoAssistant.Plugins.Autocompleter
 
       LoadConfig();
 
-      SubscribeToHtmlEvents();
-
       PublishService<IAutocompleterSvc, AutocompleterSvc>(_autocompleterSvc);
 
       CurrentSuggestionSource = DefaultSuggestionSource;
       SuggestionSourcePluginName = Name;
 
-      Svc.SM.UI.ElementWdw.OnElementChanged += new ActionProxy<SMDisplayedElementChangedEventArgs>(ElementWdw_OnElementChanged);
+      Svc.SM.UI.ElementWdw.OnElementChanged += new ActionProxy<SMDisplayedElementChangedEventArgs>(OnElementChanged);
 
-      _ = Task.Factory.StartNew(DispatchEvents, CancellationToken.None, TaskCreationOptions.LongRunning, TaskScheduler.Default);
+      // Job Queue thread
+      _ = Task.Factory.StartNew(HandleJobs, CancellationToken.None, TaskCreationOptions.LongRunning, TaskScheduler.Default);
 
     }
 
-    private void DispatchEvents()
+    private string CreateBaseSuggestionSource()
     {
-      while (true)
+
+      var words = Words.English;
+      if (words.IsNull() || !words.Any())
+        return null;
+
+      var trie = new Trie<string>();
+
+      foreach (var word in words)
       {
-        EventQueue.DataAvailableEvent.WaitOne(3000);
-        while (EventQueue.TryDequeue(out var action))
+        trie.Add(word, word);
+      }
+
+      return trie.Serialize();
+
+    }
+
+    protected override void Dispose(bool disposing)
+    {
+
+      HasExited = true;
+      base.Dispose(disposing);
+
+    }
+
+    private void HandleJobs()
+    {
+      while (!HasExited)
+      {
+        JobQueue.DataAvailableEvent.WaitOne(3000);
+        while (JobQueue.TryDequeue(out var action))
         {
-          action();
+          try
+          {
+            action();
+          }
+          catch (RemotingException) { }
+          catch (Exception e)
+          {
+            LogTo.Error($"Exception {e} caught in job queue thread");
+          }
         }
       }
     }
 
-    private void ElementWdw_OnElementChanged(SMDisplayedElementChangedEventArgs obj)
+    private void OnElementChanged(SMDisplayedElementChangedEventArgs obj)
     {
 
-      InitialWordSet = new HashSet<string>();
       FindWords();
 
+      SuggestionSourcePluginName = Name;
+      CurrentSuggestionSource = DefaultSuggestionSource;
+
+      SubscribeToHtmlEvents();
+
     }
 
-    /// <inheritdoc />
-    public override void ShowSettings()
+    private void SubscribeToKeydownEvent(IHTMLElement2 body)
     {
-      ConfigurationWindow.ShowAndActivate(HotKeyManager.Instance, Config);
+
+      if (body.IsNull())
+        return;
+
+      try
+      {
+
+        _htmlKeydownEvent = new HtmlEvent();
+        body.SubscribeTo(EventType.onkeydown, _htmlKeydownEvent);
+        _htmlKeydownEvent.OnEvent += _htmlKeydownEvent_OnEvent;
+
+        Observable
+          .FromEventPattern<IControlHtmlEventArgs>(
+             h => _htmlKeydownEvent.OnEvent += h,
+             h => _htmlKeydownEvent.OnEvent -= h
+            )
+          .Throttle(TimeSpan.FromMilliseconds(600))
+          .Subscribe(_ => JobQueue.Enqueue(UpdateWordsForFocusedHtmlCtrl));
+
+      }
+      catch (UnauthorizedAccessException) { }
+      catch (COMException) { }
+
     }
 
+    private void SubscribeToKeyupEvent(IHTMLElement2 body)
+    {
+
+      if (body.IsNull())
+        return;
+
+      try
+      {
+
+        _htmlKeyupEvent = new HtmlEvent();
+        body.SubscribeTo(EventType.onkeyup, _htmlKeyupEvent);
+        _htmlKeyupEvent.OnEvent += _htmlKeyupEvent_OnEvent;
+
+        // TODO: Use Reactivex!!!!
+
+        // Throttles KeyUp to minimize the number of updates during continuous typing
+        // TODO: Doesn't use ReactiveEx because accessing the eventObject throws errors
+        // because of threading? 
+
+        _htmlKeyupEvent.OnEvent += CreateThrottledEventHandler(
+          (s, e) => _htmlKeyupEvent_OnEvent(s, e),
+                    TimeSpan.FromSeconds(0.1));
+
+
+      }
+      catch (UnauthorizedAccessException) { }
+      catch (COMException) { }
+
+
+    }
+
+    /// <summary>
+    /// Subscribe to keydown and keyup events
+    /// </summary>
+    private void SubscribeToHtmlEvents()
+    {
+
+      var body = ContentUtils.GetFocusedHtmlDocument() as IHTMLElement2;
+      if (body.IsNull())
+        return;
+
+      SubscribeToKeydownEvent(body);
+      SubscribeToKeyupEvent(body);
+
+    }
     private void FindWords()
     {
 
-      DefaultSuggestionSource = new Trie<string>();
+      InitialWordSet = new HashSet<string>();
+      DefaultSuggestionSource = BaseSuggestionSource.Deserialize<Trie<string>>();
 
       var htmlCtrls = ContentUtils.GetHtmlCtrls();
       if (htmlCtrls.IsNull() || !htmlCtrls.Any())
         return;
 
-      foreach (KeyValuePair<int, IControlHtml> kvpair in htmlCtrls)
+      foreach (var htmlCtrl in htmlCtrls)
       {
-
-        int ctrlIdx = kvpair.Key;
-        var htmlCtrl = kvpair.Value;
 
         var doc = htmlCtrl?.GetDocument();
         var text = doc?.body?.innerText;
@@ -224,6 +339,9 @@ namespace SuperMemoAssistant.Plugins.Autocompleter
           continue;
 
         var words = SplitIntoWords(text);
+        if (words.IsNull() || !words.Any())
+          return;
+
         foreach (var word in words)
         {
           InitialWordSet.Add(word);
@@ -243,8 +361,16 @@ namespace SuperMemoAssistant.Plugins.Autocompleter
         return;
 
       var words = SplitIntoWords(text);
+      if (words.IsNull() || !words.Any())
+        return;
+
       words.ExceptWith(InitialWordSet);
-      words.ForEach(w => DefaultSuggestionSource.Add(w, w));
+
+      foreach (var word in words)
+      {
+        DefaultSuggestionSource.Add(word, word);
+      }
+
       InitialWordSet.UnionWith(words);
 
     }
@@ -258,170 +384,140 @@ namespace SuperMemoAssistant.Plugins.Autocompleter
             ?.Split((char[])null)  // split on whitespace
             ?.Where(word => !word.IsNullOrEmpty())
             ?.Where(word => word.Length > 3)
-            ?.Select(word => word.Trim(PunctuationAndSymbols))
+            ?.Select(word => word.Trim(Words.PunctuationAndSymbols))
             ?.Where(word => word.All(c => char.IsLetterOrDigit(c))) // filter invalid words
             ?.ToHashSet();
 
     }
 
-    private void SubscribeToHtmlEvents()
+    private void _htmlKeydownEvent_OnEvent(object sender, IControlHtmlEventArgs e)
     {
 
-      var opts = new List<EventInitOptions>
-      {
-        new EventInitOptions(EventType.onkeydown),
-        new EventInitOptions(EventType.onkeyup)
-      };
+      var ev = e?.EventObj;
+      if (ev.IsNull())
+        return;
 
-      Events = new HTMLControlEvents(opts);
+      int key = ev.keyCode;
 
-      Events.OnKeyDownEvent += Events_OnKeyDownEvent;
+      bool esc = ev.keyCode == 27;
+      bool arrowUp = ev.keyCode == 38;
+      bool arrowDown = ev.keyCode == 40;
+      bool arrowRight = ev.keyCode == 39;
 
-      Observable
-        .FromEventPattern<IHTMLControlEventArgs>(
-           h => Events.OnKeyDownEvent += h,
-           h => Events.OnKeyDownEvent -= h
-          )
-        .Throttle(TimeSpan.FromMilliseconds(600))
-        .Subscribe(_ => EventQueue.Enqueue(UpdateWordsForFocusedHtmlCtrl));
+      if (CurrentPopup.IsNull() || !CurrentPopup.IsOpen())
+        return;
 
-      // Throttles KeyUp to minimize the number of updates during continuous typing
-      // TODO: Doesn't use ReactiveEx because accessing the eventObject throws errors
-      // because of threading? 
+      if (!(arrowDown || arrowRight || arrowUp || esc))
+        return;
 
-      Events.OnKeyUpEvent += CreateThrottledEventHandler(
-        (s, e) => Events_OnKeyUpEvent(s, e),
-                  TimeSpan.FromSeconds(0.1));
-    }
+      ev.returnValue = false;
 
-    public class LastPartialWord
-    {
-      public string Text { get; set; }
-      public int Width { get; set; }
-      public LastPartialWord(string word, int width)
-      {
-        this.Text = word;
-        this.Width = width;
-      }
-    }
-
-    private double GetWordWidth(string word, int fontSize, string fontName)
-    {
-
-      if (word.IsNullOrEmpty() || fontSize < 0 || fontName.IsNullOrEmpty())
-        return -1;
-
-      Font stringFont = new Font(fontName, fontSize);
-      var stringSize = System.Windows.Forms.TextRenderer.MeasureText(word, stringFont);
-      stringFont.Dispose();
-      return stringSize.IsNull()
-        ? -1
-        : stringSize.Width;
+      JobQueue.Enqueue(() => CurrentPopup.HandleKeydownInput(key));
 
     }
 
-    private LastPartialWord GetLastPartialWord(IHTMLTxtRange selObj)
+    private void _htmlKeyupEvent_OnEvent(object sender, IControlHtmlEventArgs e)
     {
 
-      LastPartialWord word = null;
-
-      if (selObj.IsNull())
-        return null;
-
-      var duplicate = selObj.duplicate();
-      while (duplicate.moveStart("character", -1) == -1)
-      {
-        if (duplicate.text.IsNullOrEmpty())
-          return null;
-
-        char first = duplicate.text.First();
-        if (char.IsWhiteSpace(first))
-        {
-
-          duplicate.moveStart("character", 1);
-
-          var fontSizeIE = duplicate.QueryFontSize();
-          int fontSizePx = IEFontSizeToPixels[fontSizeIE];
-          string fontname = duplicate.QueryFontName();
-          int width = (int)GetWordWidth(duplicate.text, fontSizePx, fontname);
-          word = new LastPartialWord(duplicate.text, width);
-          break;
-
-        }
-        // Break if word contains punctuation
-        else if (char.IsPunctuation(first))
-          break;
-      }
-
-      return word;
-
-    }
-
-    private void Events_OnKeyUpEvent(object sender, IHTMLControlEventArgs e)
-    {
-
-      var ev = e.EventObj;
+      var ev = e?.EventObj;
+      if (ev.IsNull())
+        return;
 
       var key = ev.keyCode;
-      if (key == 27) // Esc
+      int x = ev.screenX;
+      int y = ev.screenY;
+
+      // The action to execute depending on input
+
+      Action action = null;
+
+      // If there is a popup open already
+      // pass input to the popup to handle
+
+      if (!CurrentPopup.IsNull() || !CurrentPopup.IsOpen())
+      {
+        action = CurrentPopup.HandleKeyupInput(key, x, y);
+      }
+
+      // Else, handle input here
+      else
+      {
+
+        switch (key)
+        {
+
+          case 27: // ESC
+            action = () => CurrentPopup?.Hide();
+            break;
+
+          case 39: // Right Arrow
+          case 38: // Up Arrow
+          case 40: // Down Arrow 
+            return;
+
+          default:
+            action = () => ShowNewAutocompleteWdw();
+            break;
+
+        }
+
+      }
+
+      if (!action.IsNull()) 
+        JobQueue.Enqueue(action);
+
+    }
+
+    private void ShowNewAutocompleteWdw()
+    {
+
+      var selObj = ContentUtils.GetSelectionObject();
+      if (selObj.IsNull() || !selObj.text.IsNullOrEmpty())
+        return;
+
+      var lastWord = ContentUtils.GetLastPartialWord(selObj);
+      if (lastWord.IsNull() || lastWord.Text.IsNullOrEmpty())
       {
         CurrentPopup?.Hide();
         return;
       }
-      else if (key == 39) // Right Arrow
+
+      var matches = FindMatchingWords(lastWord.Text);
+      if (matches.IsNull() || !matches.Any())
+      {
+        CurrentPopup?.Hide();
         return;
-      else if (key == 38) // Up Arrow
+      }
+
+      if (matches.Count() == 1 && matches.First() == lastWord.Text)
+      {
+        CurrentPopup?.Hide();
         return;
-      else if (key == 40) // Down Arrow 
+      }
+
+      var htmlDoc = ContentUtils.GetFocusedHtmlDocument();
+      if (htmlDoc.IsNull())
         return;
 
-      EventQueue.Enqueue(() =>
+      // Position the autocomplete window under the first letter of the last partial word
+      var caretPos = CaretPos.EvaluateCaretPosition();
+      int x = caretPos.X - lastWord.Width + 3;
+      int y = caretPos.Y;
+      int matchLength = lastWord.Text.Length;
+
+      Application.Current.Dispatcher.BeginInvoke((Action)(() =>
       {
 
-        var selObj = ContentUtils.GetSelectionObject();
-        if (selObj.IsNull() || !selObj.text.IsNullOrEmpty())
+        var wdw = ContentUtils.GetFocusedHtmlWindow() as IHTMLWindow4;
+        var htmlDoc = ((IHTMLWindow2)wdw)?.document;
+        if (wdw.IsNull() || htmlDoc.IsNull())
           return;
 
-        var word = GetLastPartialWord(selObj);
-        if (word.IsNull() || word.Text.IsNullOrEmpty())
-        {
-          CurrentPopup?.Hide();
-          return;
-        }
+        CurrentPopup = PopupEx.CreatePopup(wdw);
+        CurrentPopup.AddContent(matches, matchLength);
+        CurrentPopup.Show(x, y);
 
-        IEnumerable<string> matches = FindMatchingWords(word.Text);
-        if (matches.IsNull() || !matches.Any())
-        {
-          CurrentPopup?.Hide();
-          return;
-        }
-
-        if (matches.Count() == 1 && matches.First() == word.Text)
-        {
-          CurrentPopup?.Hide();
-          return;
-        }
-
-        var htmlDoc = ContentUtils.GetFocusedHtmlDocument();
-        if (htmlDoc.IsNull())
-          return;
-
-        var caretPos = CaretPos.EvaluateCaretPosition();
-        int x = caretPos.X - word.Width + 3;
-        int y = caretPos.Y;
-        int matchLength = word.Text.Length;
-
-        Application.Current.Dispatcher.BeginInvoke((Action)(() =>
-        {
-
-          CurrentPopup = PopupEx.CreatePopup();
-          CurrentPopup.UpdatePopup(matches, matchLength);
-          CurrentPopup.ShowPopup(matches.Count(), x, y, htmlDoc.body);
-
-        }));
-
-      });
-
+      }));
     }
 
     private IEnumerable<string> FindMatchingWords(string word)
@@ -429,112 +525,9 @@ namespace SuperMemoAssistant.Plugins.Autocompleter
 
       return word.IsNullOrEmpty()
         ? null
-        : DefaultSuggestionSource.Retrieve(word)?.Take(Config.MaxResults);
+        : CurrentSuggestionSource.Retrieve(word)?.Take(Config.MaxResults);
 
     }
-
-    public bool InsertCurrentSelection(IHTMLPopup popup, out string word)
-    {
-
-      word = null;
-
-      try
-      {
-
-        if (popup.IsNull())
-          return false;
-
-        var selected = popup.GetSelectedMenuItem();
-        if (selected.IsNull())
-          return false;
-
-        var selObj = ContentUtils.GetSelectionObject();
-        if (selObj.IsNull())
-          return false;
-
-        // Replace the last partial word
-        while (selObj.moveStart("character", -1) == -1)
-        {
-
-          char first = selObj.text.First();
-          if (char.IsWhiteSpace(first))
-          {
-            selObj.moveStart("character", 1);
-            break;
-          }
-          // Break if word contains punctuation
-          else if (char.IsPunctuation(first))
-            break;
-        }
-        
-        word = selected.innerText;
-
-        if (!AcceptedSuggestionConverter.IsNull())
-        {
-          if (!AcceptedSuggestionConverter.TryGetValue(word, out word))
-          {
-            LogTo.Warning($"Failed to find {word} in AcceptedSuggestionConverter dictionary");
-            return false;
-          }
-        }
-
-        selObj.text = word;
-        return true;
-
-      }
-      catch (RemotingException) { }
-      catch (UnauthorizedAccessException) { }
-
-      return false;
-
-    }
-
-    private void Events_OnKeyDownEvent(object sender, IHTMLControlEventArgs e)
-    {
-
-      var ev = e.EventObj;
-
-      bool esc = ev.keyCode == 27;
-      bool tab = ev.keyCode == 9; // Doesn't work
-
-      bool arrowUp = ev.keyCode == 38;
-      bool arrowDown = ev.keyCode == 40;
-      bool arrowRight = ev.keyCode == 39;
-
-      if (CurrentPopup.IsNull() || !CurrentPopup.isOpen)
-        return;
-
-      if (!arrowDown && !arrowRight && !arrowUp && !tab)
-        return;
-
-      ev.returnValue = false;
-
-      EventQueue.Enqueue(() =>
-      {
-
-        if (esc)
-          CurrentPopup?.Hide();
-
-        else if (arrowRight)
-        {
-
-          if (InsertCurrentSelection(CurrentPopup, out var word))
-          {
-            _autocompleterSvc?.InvokeSuggestionAccepted(word, SuggestionSourcePluginName);
-            CurrentPopup?.Hide();
-          }
-
-        }
-        else if (arrowDown)
-          CurrentPopup?.SelectNextMenuItem();
-
-        else if (arrowUp)
-          CurrentPopup?.SelectPrevMenuItem();
-
-      });
-
-    }
-
 
     public bool SetWordSuggestionSource(string pluginName, Trie<string> TrieOfWords)
     {

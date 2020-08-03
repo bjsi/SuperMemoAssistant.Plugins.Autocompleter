@@ -70,6 +70,7 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\..\Autocompleter.Interop\src\SuperMemoAssistant.Plugins.Autocompleter.Interop\SuperMemoAssistant.Plugins.Autocompleter.Interop.csproj" />
+    <ProjectReference Include="..\..\..\Autocompleter.Interop\trienet\TrieNet\TrieNet.csproj" />
   </ItemGroup>
   <Target Name="CopyOutput" AfterTargets="Build">
     <Exec Command="xcopy /h /i /c /k /e /r /y &quot;$(TargetDir)*&quot; &quot;%25UserProfile%25\SuperMemoAssistant\Plugins\Development\$(ProjectName)&quot;" />

@@ -13,6 +13,51 @@ namespace SuperMemoAssistant.Plugins.Autocompleter
 {
   public static class ContentUtils
   {
+
+    private static IHTMLTxtRange SelectLastPartialWord(IHTMLTxtRange selObj)
+    {
+
+      bool found = false;
+      var duplicate = selObj.duplicate();
+      while (duplicate.moveStart("character", -1) == -1)
+      {
+        if (duplicate.text.IsNullOrEmpty())
+          return null;
+
+        char first = duplicate.text.First();
+        if (char.IsWhiteSpace(first))
+        {
+          duplicate.moveStart("character", 1);
+          found = true;
+        }
+        // Break if word contains punctuation
+        else if (char.IsPunctuation(first))
+        {
+          found = true;
+          break;
+        }
+      }
+
+      return found
+        ? duplicate
+        : null;
+
+    }
+
+    public static  LastPartialWord GetLastPartialWord(IHTMLTxtRange selObj)
+    {
+
+      if (selObj.IsNull())
+        return null;
+
+      var selected = SelectLastPartialWord(selObj);
+      if (selected.IsNull())
+        return null;
+
+      return MeasureWord.CalculateLastPartialWord(selected);
+
+    }
+
     /// <summary>
     /// Get the selection object representing the currently highlighted text in SM.
     /// </summary>
@@ -45,10 +90,10 @@ namespace SuperMemoAssistant.Plugins.Autocompleter
 
     }
 
-    public static Dictionary<int, IControlHtml> GetHtmlCtrls()
+    public static List<IControlHtml> GetHtmlCtrls()
     {
 
-      var ret = new Dictionary<int, IControlHtml>();
+      var ret = new List<IControlHtml>();
 
       var ctrlGroup = Svc.SM.UI.ElementWdw.ControlGroup;
       if (ctrlGroup.IsNull())
@@ -58,7 +103,7 @@ namespace SuperMemoAssistant.Plugins.Autocompleter
       {
         var htmlCtrl = ctrlGroup[i].AsHtml();
         if (!htmlCtrl.IsNull())
-          ret.Add(i, htmlCtrl);
+          ret.Add(htmlCtrl);
       }
 
       return ret;

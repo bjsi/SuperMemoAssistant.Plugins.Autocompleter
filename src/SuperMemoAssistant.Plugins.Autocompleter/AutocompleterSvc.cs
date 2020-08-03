@@ -35,9 +35,7 @@ namespace SuperMemoAssistant.Plugins.Autocompleter
 
     public void ResetWordSuggestionSource()
     {
-
       Svc<AutocompleterPlugin>.Plugin.ResetWordSuggestionSource();
-
     }
 
     public event Action<SuggestionAcceptedEventArgs> OnSuggestionAccepted;
