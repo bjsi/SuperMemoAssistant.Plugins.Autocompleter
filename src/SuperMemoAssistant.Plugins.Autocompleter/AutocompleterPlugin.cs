@@ -93,7 +93,7 @@ namespace SuperMemoAssistant.Plugins.Autocompleter
     /// Optional converter dictionary used to convert accepted menu items.
     /// Useful for expanding snippets.
     /// </summary>
-    private Dictionary<string, string> AcceptedSuggestionConverter { get; set; }
+    public Dictionary<string, string> AcceptedSuggestionConverter { get; set; }
 
     /// <summary>
     /// Dictionary words + current element words.
@@ -103,7 +103,7 @@ namespace SuperMemoAssistant.Plugins.Autocompleter
     /// <summary>
     /// Name of the plugin that provided the suggestion words.
     /// </summary>
-    private string SuggestionSourcePluginName { get; set; }
+    public string SuggestionSourcePluginName { get; set; }
 
     /// <summary>
     /// Serialized Trie<string> of the top 10k English words by frequency > 3 letters:
@@ -153,22 +153,22 @@ namespace SuperMemoAssistant.Plugins.Autocompleter
     }
 
 
-    // TODO: Change to ReactiveEx
-    private EventHandler<IControlHtmlEventArgs> CreateThrottledEventHandler(
-    EventHandler<IControlHtmlEventArgs> handler,
-    TimeSpan throttle)
-    {
-      bool throttling = false;
-      return async (s, e) =>
-      {
-        if (throttling) return;
-        handler(s, e);
-        throttling = true;
+    //// TODO: Change to ReactiveEx
+    //private EventHandler<IControlHtmlEventArgs> CreateThrottledEventHandler(
+    //EventHandler<IControlHtmlEventArgs> handler,
+    //TimeSpan throttle)
+    //{
+    //  bool throttling = false;
+    //  return async (s, e) =>
+    //  {
+    //    if (throttling) return;
+    //    handler(s, e);
+    //    throttling = true;
 
-        // TODO: Is it useful to have await here?
-        await Task.Delay(throttle).ContinueWith(_ => throttling = false);
-      };
-    }
+    //    // TODO: Is it useful to have await here?
+    //    await Task.Delay(throttle).ContinueWith(_ => throttling = false);
+    //  };
+    //}
 
     #region Methods Impl
 
@@ -294,10 +294,20 @@ namespace SuperMemoAssistant.Plugins.Autocompleter
         // TODO: Doesn't use ReactiveEx because accessing the eventObject throws errors
         // because of threading? 
 
-        _htmlKeyupEvent.OnEvent += CreateThrottledEventHandler(
-          (s, e) => _htmlKeyupEvent_OnEvent(s, e),
-                    TimeSpan.FromSeconds(0.1));
+        //_htmlKeyupEvent.OnEvent += CreateThrottledEventHandler(
+        //  (s, e) => _htmlKeyupEvent_OnEvent(s, e),
+        //            TimeSpan.FromSeconds(0.1));
 
+        Observable
+          .FromEventPattern<IControlHtmlEventArgs>(
+            h => _htmlKeyupEvent.OnEvent += _htmlKeyupEvent_OnEvent,
+            h => _htmlKeyupEvent.OnEvent -= _htmlKeyupEvent_OnEvent
+          )
+          .Throttle(TimeSpan.FromMilliseconds(200))
+          // TODO: Test
+          .ObserveOn(SynchronizationContext.Current)
+          .SubscribeOn(SynchronizationContext.Current)
+          .Subscribe(x => _htmlKeyupEvent_OnEvent(x.Sender, x.EventArgs));
 
       }
       catch (UnauthorizedAccessException) { }
@@ -320,6 +330,7 @@ namespace SuperMemoAssistant.Plugins.Autocompleter
       SubscribeToKeyupEvent(body);
 
     }
+
     private void FindWords()
     {
 
@@ -513,7 +524,7 @@ namespace SuperMemoAssistant.Plugins.Autocompleter
         if (wdw.IsNull() || htmlDoc.IsNull())
           return;
 
-        CurrentPopup = PopupEx.CreatePopup(wdw);
+        CurrentPopup = wdw.CreatePopup();
         CurrentPopup.AddContent(matches, matchLength);
         CurrentPopup.Show(x, y);
 

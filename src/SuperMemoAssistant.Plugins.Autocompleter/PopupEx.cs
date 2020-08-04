@@ -71,6 +71,10 @@ namespace SuperMemoAssistant.Plugins.Autocompleter
     // Events
     public event EventHandler<HtmlPopupEventArgs> OnShow;
 
+    private Dictionary<string, string> AcceptedSuggestionConverter => Svc<AutocompleterPlugin>.Plugin.AcceptedSuggestionConverter;
+    private AutocompleterSvc _autocompleterSvc => Svc<AutocompleterPlugin>.Plugin._autocompleterSvc;
+    private string SuggestionSourcePluginName => Svc<AutocompleterPlugin>.Plugin.SuggestionSourcePluginName;
+
     /// <summary>
     /// Coordinates and sizing information
     /// </summary>
@@ -174,7 +178,7 @@ namespace SuperMemoAssistant.Plugins.Autocompleter
           }
         }
 
-        Svc<AutocompleterPlugin>.Plugin._autocompleterSvc?.InvokeSuggestionAccepted(word, SuggestionSourcePluginName);
+        _autocompleterSvc?.InvokeSuggestionAccepted(word, SuggestionSourcePluginName);
         Hide();
         selObj.text = word;
         return;
