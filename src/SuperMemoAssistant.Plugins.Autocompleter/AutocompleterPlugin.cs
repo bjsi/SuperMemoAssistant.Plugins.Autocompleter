@@ -36,6 +36,7 @@ namespace SuperMemoAssistant.Plugins.Autocompleter
   using System.Diagnostics.CodeAnalysis;
   using System.Drawing;
   using System.Linq;
+  using System.Reactive.Concurrency;
   using System.Reactive.Linq;
   using System.Runtime.InteropServices;
   using System.Runtime.Remoting;
@@ -46,6 +47,7 @@ namespace SuperMemoAssistant.Plugins.Autocompleter
   using Anotar.Serilog;
   using Gma.DataStructures.StringSearch;
   using mshtml;
+  using Newtonsoft.Json;
   using SuperMemoAssistant.Extensions;
   using SuperMemoAssistant.Interop.SuperMemo.Content.Controls;
   using SuperMemoAssistant.Interop.SuperMemo.Core;
@@ -108,7 +110,7 @@ namespace SuperMemoAssistant.Plugins.Autocompleter
     /// <summary>
     /// Serialized Trie<string> of the top 10k English words by frequency > 3 letters:
     /// </summary>
-    private string BaseSuggestionSource => CreateBaseSuggestionSource();
+    private string BaseSuggestionSource { get; set; }
 
     // TODO: Does this actually get used?
 
@@ -180,6 +182,7 @@ namespace SuperMemoAssistant.Plugins.Autocompleter
 
       PublishService<IAutocompleterSvc, AutocompleterSvc>(_autocompleterSvc);
 
+      BaseSuggestionSource = CreateBaseSuggestionSource();
       CurrentSuggestionSource = DefaultSuggestionSource;
       SuggestionSourcePluginName = Name;
 
@@ -190,7 +193,7 @@ namespace SuperMemoAssistant.Plugins.Autocompleter
 
     }
 
-    private string CreateBaseSuggestionSource()
+    private static string CreateBaseSuggestionSource()
     {
 
       var words = Words.English;
@@ -204,7 +207,7 @@ namespace SuperMemoAssistant.Plugins.Autocompleter
         trie.Add(word, word);
       }
 
-      return trie.Serialize();
+      return JsonConvert.SerializeObject(trie);
 
     }
 
@@ -305,8 +308,8 @@ namespace SuperMemoAssistant.Plugins.Autocompleter
           )
           .Throttle(TimeSpan.FromMilliseconds(200))
           // TODO: Test
-          .ObserveOn(SynchronizationContext.Current)
-          .SubscribeOn(SynchronizationContext.Current)
+          .ObserveOn(Scheduler.CurrentThread)
+          .SubscribeOn(Scheduler.CurrentThread)
           .Subscribe(x => _htmlKeyupEvent_OnEvent(x.Sender, x.EventArgs));
 
       }
@@ -322,7 +325,8 @@ namespace SuperMemoAssistant.Plugins.Autocompleter
     private void SubscribeToHtmlEvents()
     {
 
-      var body = ContentUtils.GetFocusedHtmlDocument() as IHTMLElement2;
+      var htmlDoc = ContentUtils.GetFocusedHtmlDocument();
+      var body = htmlDoc?.body as IHTMLElement2;
       if (body.IsNull())
         return;
 
@@ -445,7 +449,7 @@ namespace SuperMemoAssistant.Plugins.Autocompleter
       // If there is a popup open already
       // pass input to the popup to handle
 
-      if (!CurrentPopup.IsNull() || !CurrentPopup.IsOpen())
+      if (!CurrentPopup.IsNull())
       {
         action = CurrentPopup.HandleKeyupInput(key, x, y);
       }
