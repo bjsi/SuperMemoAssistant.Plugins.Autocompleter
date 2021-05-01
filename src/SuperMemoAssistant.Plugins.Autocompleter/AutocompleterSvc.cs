@@ -1,54 +1,28 @@
-﻿using Gma.DataStructures.StringSearch;
+﻿using AutocompleterInterop;
 using PluginManager.Interop.Sys;
-using SuperMemoAssistant.Plugins.Autocompleter.Interop;
 using SuperMemoAssistant.Services;
-using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace SuperMemoAssistant.Plugins.Autocompleter
 {
   public class AutocompleterSvc : PerpetualMarshalByRefObject, IAutocompleterSvc
   {
-
-    public bool SetWordSuggestionSource(string pluginName, Trie<string> TrieOfWords)
+    public bool AddWords(IEnumerable<KeyValuePair<string, string>> keyValuePairs)
     {
-
-      if (TrieOfWords.IsNull())
+      if (keyValuePairs == null || !keyValuePairs.Any())
         return false;
 
-      return Svc<AutocompleterPlugin>.Plugin.SetWordSuggestionSource(pluginName, TrieOfWords);
-
+      return Svc<AutocompleterPlugin>.Plugin.AddWords(keyValuePairs);
     }
 
-    public bool SetWordSuggestionSource(string pluginName, Trie<string> TrieOfWords, Dictionary<string, string> Converter)
+    public void Enable()
     {
-
-      if (TrieOfWords.IsNull() || Converter.IsNull())
-        return false;
-
-      return Svc<AutocompleterPlugin>.Plugin.SetWordSuggestionSource(pluginName, TrieOfWords, Converter);
-
+      Svc<AutocompleterPlugin>.Plugin.Enable();
     }
-
-    public void ResetWordSuggestionSource()
+    public void Disable()
     {
-      Svc<AutocompleterPlugin>.Plugin.ResetWordSuggestionSource();
+      Svc<AutocompleterPlugin>.Plugin.Disable();
     }
-
-    public event Action<SuggestionAcceptedEventArgs> OnSuggestionAccepted;
-
-    public void InvokeSuggestionAccepted(string word, string pluginName)
-    {
-      
-      if (word.IsNullOrEmpty() || pluginName.IsNullOrEmpty())
-        return;
-
-      OnSuggestionAccepted?.Invoke(new SuggestionAcceptedEventArgs(word, pluginName));
-
-    }
-
   }
 }

@@ -1,14 +1,9 @@
 ﻿using mshtml;
-using System;
 using System.Collections.Generic;
 using System.Drawing;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace SuperMemoAssistant.Plugins.Autocompleter
 {
-
   public class LastPartialWord
   {
     public string Text { get; set; }
@@ -19,7 +14,6 @@ namespace SuperMemoAssistant.Plugins.Autocompleter
       this.Width = width;
     }
   }
-
 
   public static class MeasureWord
   {
@@ -38,14 +32,14 @@ namespace SuperMemoAssistant.Plugins.Autocompleter
     public static double GetWordWidth(string word, int fontSize, string fontName)
     {
 
-      if (word.IsNullOrEmpty() || fontSize < 0 || fontName.IsNullOrEmpty())
+      if (string.IsNullOrEmpty(word) || fontSize < 0 || string.IsNullOrEmpty(fontName))
         return -1;
 
       Font stringFont = new Font(fontName, fontSize);
       var stringSize = System.Windows.Forms.TextRenderer.MeasureText(word, stringFont);
       stringFont.Dispose();
 
-      return stringSize.IsNull()
+      return stringSize == null
         ? -1
         : stringSize.Width;
 

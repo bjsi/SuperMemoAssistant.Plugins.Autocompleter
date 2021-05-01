@@ -1,5 +1,7 @@
 ﻿using Anotar.Serilog;
 using mshtml;
+using SuperMemoAssistant.Extensions;
+using SuperMemoAssistant.Interop.SuperMemo.Content.Controls;
 using SuperMemoAssistant.Services;
 using System;
 using System.Collections.Generic;
@@ -67,19 +69,6 @@ namespace SuperMemoAssistant.Plugins.Autocompleter
 
     private IHTMLPopup _popup { get; set; }
 
-    // 
-    // Events
-    public event EventHandler<HtmlPopupEventArgs> OnShow;
-
-    private Dictionary<string, string> AcceptedSuggestionConverter => Svc<AutocompleterPlugin>.Plugin.AcceptedSuggestionConverter;
-    private AutocompleterSvc _autocompleterSvc => Svc<AutocompleterPlugin>.Plugin._autocompleterSvc;
-    private string SuggestionSourcePluginName => Svc<AutocompleterPlugin>.Plugin.SuggestionSourcePluginName;
-
-    /// <summary>
-    /// Coordinates and sizing information
-    /// </summary>
-    private HtmlPopupOptions Options { get; set; }
-
     public HtmlPopup(IHTMLWindow4 wdw)
     {
 
@@ -93,67 +82,49 @@ namespace SuperMemoAssistant.Plugins.Autocompleter
 
     }
 
-    public Action HandleKeydownInput(int keyCode)
+    public void HandleKeydownInput(HtmlKeyInfo key)
     {
-
-      // Return an action based on the input
-
-      Action action = null;
-
-      switch (keyCode)
+      var keyCode = key.keyCode;
+      if (keyCode == 27) // ESC
       {
-
-        case 27: // ESC
-          action = () => Hide();
-          break;
-
-        case 38: // Arrow Up
-          action = () => SelectPreviousItem();
-          break;
-
-        case 40: // Arrow Down
-          action = () => SelectNextItem();
-          break;
-
-        case 39: // Arrow Right
-          action = () => InsertSelectedItem();
-          break;
-
-        default:
-
-          // TODO: Show popup
-          break;
-
+        Hide();
       }
-
-      return action;
-
+      else if (keyCode == 38) // Arrow Up
+      {
+        SelectPreviousItem();
+      }
+      else if (keyCode == 40)
+      {
+        SelectNextItem(); // Arrow Down
+      }
+      else if (keyCode == 39)
+      {
+        InsertSelectedItem(); // Arrow Right
+      }
     }
 
     private void InsertSelectedItem()
     {
-
       try
       {
-
         string word = null;
 
-        if (_popup.IsNull())
+        if (_popup == null)
           return;
 
         var selItem = GetSelectedItem();
-        if (selItem.IsNull())
+        if (selItem == null)
           return;
 
         var selObj = ContentUtils.GetSelectionObject();
-        if (selObj.IsNull())
+        if (selObj == null)
           return;
 
         // Replace the last partial word
         while (selObj.moveStart("character", -1) == -1)
         {
 
-          if (selObj.text.IsNullOrEmpty())
+          if (string.IsNullOrEmpty(selObj.text))
             return;
 
           char first = selObj.text.First();
@@ -168,17 +139,10 @@ namespace SuperMemoAssistant.Plugins.Autocompleter
         }
 
         word = selItem.innerText;
+        if (Svc<AutocompleterPlugin>.Plugin.Converter.ContainsKey(word))
+          word = Svc<AutocompleterPlugin>.Plugin.Converter[word];
 
-        if (!AcceptedSuggestionConverter.IsNull())
-        {
-          if (!AcceptedSuggestionConverter.TryGetValue(word, out word))
-          {
-            LogTo.Warning($"Failed to find {word} in AcceptedSuggestionConverter dictionary");
-            return;
-          }
-        }
 
-        _autocompleterSvc?.InvokeSuggestionAccepted(word, SuggestionSourcePluginName);
         Hide();
         selObj.text = word;
         return;
@@ -190,37 +154,11 @@ namespace SuperMemoAssistant.Plugins.Autocompleter
 
     }
 
-    public Action HandleKeyupInput(int keyCode, int x, int y)
-    {
-
-      // Return an action depending on the input.
-
-      Action action = null;
-
-      switch (keyCode)
-      {
-
-        case 27: // ESC
-          action = () => Hide();
-          break;
-
-        default:
-          action = () => Show(x, y); // TODO
-          break;
-
-      }
-
-      return action;
-
-    }
-
     public bool IsOpen()
     {
-
-      return _popup.IsNull()
+      return _popup == null
         ? false
         : _popup.isOpen;
-
     }
 
     public void AddContent(IEnumerable<string> matches, int textLength)
@@ -229,12 +167,12 @@ namespace SuperMemoAssistant.Plugins.Autocompleter
       try
       {
 
-        if (_popup.IsNull() || !matches.Any())
+        if (_popup == null || !matches.Any())
           return;
 
         var doc = GetDocument();
         var body = doc?.body as IHTMLDOMNode;
-        if (body.IsNull() || doc.IsNull())
+        if (body == null || doc == null)
           return;
 
         // Clear the popup content
@@ -250,6 +188,8 @@ namespace SuperMemoAssistant.Plugins.Autocompleter
           menuItem.style.border = "solid black 1px";
 
           menuItem.setAttribute("selected", 0);
+
+          // TODO: textLength race condition.
           menuItem.innerHTML = "<span style='color: orange;'>" +
                                  "<B>" +
                                    match.Substring(0, textLength) +
@@ -262,7 +202,6 @@ namespace SuperMemoAssistant.Plugins.Autocompleter
           body.appendChild(((IHTMLDOMNode)menuItem));
 
         }
-
       }
       catch (UnauthorizedAccessException) { }
       catch (COMException) { }
@@ -273,15 +212,12 @@ namespace SuperMemoAssistant.Plugins.Autocompleter
     {
 
       var doc = GetDocument();
-      if (!doc.IsNull())
+      if (doc != null)
       {
-
-        doc.body.style.font = "Arial";
+        //doc.body.style.font = "Arial";
         doc.body.style.fontSize = "12px";
         doc.body.style.border = "solid black 1px";
-
       }
-
     }
 
 
@@ -291,7 +227,7 @@ namespace SuperMemoAssistant.Plugins.Autocompleter
       try
       {
 
-        if (_popup.IsNull())
+        if (_popup == null)
           return null;
 
         var doc = GetDocument();
@@ -301,7 +237,7 @@ namespace SuperMemoAssistant.Plugins.Autocompleter
           ?.Where(x => x.tagName.ToLower() == "div")
           ?.ToList();
 
-        if (menuItems.IsNull() || menuItems.Count == 0)
+        if (menuItems == null || menuItems.Count == 0)
           return null;
 
         IHTMLElement selected = null;
@@ -334,7 +270,7 @@ namespace SuperMemoAssistant.Plugins.Autocompleter
       try
       {
 
-        if (_popup.IsNull())
+        if (_popup == null)
           return;
 
         var doc = GetDocument();
@@ -383,7 +319,7 @@ namespace SuperMemoAssistant.Plugins.Autocompleter
     private void SelectItem(IHTMLElement item)
     {
 
-      if (item.IsNull())
+      if (item == null)
         return;
 
       item.setAttribute("selected", 1);
@@ -394,7 +330,7 @@ namespace SuperMemoAssistant.Plugins.Autocompleter
     private void UnselectItem(IHTMLElement item)
     {
 
-      if (item.IsNull())
+      if (item == null)
         return;
 
       try
@@ -415,7 +351,7 @@ namespace SuperMemoAssistant.Plugins.Autocompleter
       try
       {
 
-        if (_popup.IsNull())
+        if (_popup == null)
           return;
 
         var doc = GetDocument();
@@ -425,7 +361,7 @@ namespace SuperMemoAssistant.Plugins.Autocompleter
           ?.Where(x => x.tagName.ToLower() == "div")
           ?.ToList();
 
-        if (childDivs.IsNull() || childDivs.Count == 0)
+        if (childDivs == null || childDivs.Count == 0)
           return;
 
         int selIdx = -1;
@@ -475,7 +411,7 @@ namespace SuperMemoAssistant.Plugins.Autocompleter
 
         var htmlDoc = GetDocument();
         var body = htmlDoc?.body;
-        if (htmlDoc.IsNull() || body.IsNull())
+        if (htmlDoc == null || body == null)
           return null;
         
         var children = body?.children as IHTMLElementCollection;
@@ -492,17 +428,17 @@ namespace SuperMemoAssistant.Plugins.Autocompleter
 
     }
 
-    public void Show(int x, int y)
+    public void Show(IEnumerable<string> matches, string lastWord)
     {
-
       try
       {
-
-        if (_popup.IsNull())
+        if (_popup == null)
           return;
 
+        AddContent(matches, lastWord.Length);
+
         var items = GetItems();
-        if (items.IsNull() || !items.Any())
+        if (items == null || !items.Any())
           return;
 
         var coords = CalculateDimensions(items);
@@ -512,42 +448,35 @@ namespace SuperMemoAssistant.Plugins.Autocompleter
         int width = (int)coords.Value.X;
         int height = (int)coords.Value.Y;
 
-        var selObj = ContentUtils.GetSelectionObject();
-        if (selObj.IsNull())
-          return;
-
-        var lastWord = ContentUtils.GetLastPartialWord(selObj);
-        if (lastWord.IsNull() || lastWord.Text.IsNullOrEmpty())
-        {
-          Hide();
-          return;
-        }
 
         // Position the autocomplete window under the first letter of the last partial word
         var caretPos = CaretPos.EvaluateCaretPosition();
-        x = caretPos.X - lastWord.Width + 3;
-        y = caretPos.Y;
-        int matchLength = lastWord.Text.Length;
+        var x = caretPos.X;
+        var y = caretPos.Y;
+        int matchLength = lastWord.Length;
 
-        OnShow?.Invoke(this, new HtmlPopupEventArgs(x, y, width, height, _popup));
-        _popup.Show(x, y, width, height, null);
+        var ctrl = Svc.SM.UI.ElementWdw.ControlGroup.FocusedControl as IControlHtml;
+        var body = ctrl.GetDocument()?.body;
+        _popup.Show((int)x, (int)y, width, height, body);
 
       }
       catch (UnauthorizedAccessException) { }
       catch (COMException) { }
-
 
     }
 
     private Point? CalculateDimensions(IEnumerable<string> items)
     {
 
-      if (items.IsNull() || !items.Any())
+      if (items == null || !items.Any())
         return null;
 
       string longestWord = items
         .OrderByDescending(x => x.Length)
-        .First();
+        .FirstOrDefault();
+
+      if (longestWord == null)
+        return null;
 
       var coords = new Point();
       coords.X = MeasureWord.GetWordWidth(longestWord, 12, "Arial");
@@ -565,32 +494,24 @@ namespace SuperMemoAssistant.Plugins.Autocompleter
     /// </summary>
     public void Hide()
     {
-
       try
       {
-
         _popup?.Hide();
-
       }
       catch (UnauthorizedAccessException) { }
       catch (COMException) { }
-
     }
 
     public IHTMLDocument2 GetDocument()
     {
-
       try
       {
-
         return _popup?.document as IHTMLDocument2;
-
       }
       catch (UnauthorizedAccessException) { }
       catch (COMException) { }
 
       return null;
-
     }
   }
 }

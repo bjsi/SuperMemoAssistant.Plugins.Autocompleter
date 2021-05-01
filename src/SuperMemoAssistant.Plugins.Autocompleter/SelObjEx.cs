@@ -22,14 +22,14 @@ namespace SuperMemoAssistant.Plugins.Autocompleter
 
     public static int QueryFontSize(this IHTMLTxtRange selObj)
     {
-      return selObj.IsNull()
+      return selObj == null
         ? -1
         : (int)selObj.QueryValueSelObj(HtmlCommand.FontSize);
     }
 
     public static string QueryFontName(this IHTMLTxtRange selObj)
     {
-      return selObj.IsNull()
+      return selObj == null
         ? null
         : (string) selObj.QueryValueSelObj(HtmlCommand.FontName);
     }
@@ -41,7 +41,7 @@ namespace SuperMemoAssistant.Plugins.Autocompleter
       try
       {
 
-        if (selObj.IsNull())
+        if (selObj == null)
           return null;
 
         // ensure command is valid and enabled

@@ -1,12 +1,8 @@
 ﻿using mshtml;
 using SuperMemoAssistant.Extensions;
 using System;
-using System.Collections.Generic;
-using System.Linq;
 using System.Runtime.InteropServices;
 using System.Runtime.Remoting;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace SuperMemoAssistant.Plugins.Autocompleter
 {
@@ -25,7 +21,7 @@ namespace SuperMemoAssistant.Plugins.Autocompleter
     [DispId(0)]
     public void handler(IHTMLEventObj e)
     {
-      if (!OnEvent.IsNull())
+      if (OnEvent != null)
         OnEvent(this, new IControlHtmlEventArgs(e));
     }
   }
@@ -112,7 +108,7 @@ namespace SuperMemoAssistant.Plugins.Autocompleter
       try
       {
 
-        return element.IsNull()
+        return element == null
           ? false
           : element.attachEvent(eventType.Name(), handlerObj);
 
@@ -139,7 +135,7 @@ namespace SuperMemoAssistant.Plugins.Autocompleter
       try
       {
 
-        return element.IsNull()
+        return element == null
           ? false
           : element.attachEvent(@event, pdisp);
 

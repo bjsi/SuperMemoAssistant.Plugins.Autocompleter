@@ -4,58 +4,28 @@ using SuperMemoAssistant.Interop.SuperMemo.Content.Controls;
 using SuperMemoAssistant.Services;
 using System;
 using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using System.Windows;
+using System.Runtime.InteropServices;
 
 namespace SuperMemoAssistant.Plugins.Autocompleter
 {
   public static class ContentUtils
   {
-
     private static IHTMLTxtRange SelectLastPartialWord(IHTMLTxtRange selObj)
     {
-
-      bool found = false;
-      var duplicate = selObj.duplicate();
-      while (duplicate.moveStart("character", -1) == -1)
-      {
-        if (duplicate.text.IsNullOrEmpty())
-          return null;
-
-        char first = duplicate.text.First();
-        if (char.IsWhiteSpace(first))
-        {
-          duplicate.moveStart("character", 1);
-          found = true;
-        }
-        // Break if word contains punctuation
-        else if (char.IsPunctuation(first))
-        {
-          found = true;
-          break;
-        }
-      }
-
-      return found
-        ? duplicate
-        : null;
-
+      selObj.moveStart("word", -1);
+      return selObj;
     }
 
     public static  LastPartialWord GetLastPartialWord(IHTMLTxtRange selObj)
     {
-
-      if (selObj.IsNull())
+      if (selObj == null)
         return null;
 
       var selected = SelectLastPartialWord(selObj);
-      if (selected.IsNull())
+      if (selected == null)
         return null;
 
       return MeasureWord.CalculateLastPartialWord(selected);
-
     }
 
     /// <summary>
@@ -64,17 +34,22 @@ namespace SuperMemoAssistant.Plugins.Autocompleter
     /// <returns>IHTMLTxtRange object or null</returns>
     public static IHTMLTxtRange GetSelectionObject()
     {
+      try
+      {
+        var ctrlGroup = Svc.SM.UI.ElementWdw.ControlGroup;
+        var htmlCtrl = ctrlGroup?.FocusedControl?.AsHtml();
+        var htmlDoc = htmlCtrl?.GetDocument();
+        var sel = htmlDoc?.selection;
 
-      var ctrlGroup = Svc.SM.UI.ElementWdw.ControlGroup;
-      var htmlCtrl = ctrlGroup?.FocusedControl?.AsHtml();
-      var htmlDoc = htmlCtrl?.GetDocument();
-      var sel = htmlDoc?.selection;
+        if (!(sel?.createRange() is IHTMLTxtRange textSel))
+          return null;
 
-      if (!(sel?.createRange() is IHTMLTxtRange textSel))
-        return null;
+        return textSel;
+      }
+      catch (COMException) { }
+      catch (UnauthorizedAccessException) { }
 
-      return textSel;
-
+      return null;
     }
 
     /// <summary>
@@ -83,31 +58,34 @@ namespace SuperMemoAssistant.Plugins.Autocompleter
     /// <returns>IHTMLDocument2 object or null</returns>
     public static IHTMLDocument2 GetFocusedHtmlDocument()
     {
+      try
+      {
+        var ctrlGroup = Svc.SM.UI.ElementWdw.ControlGroup;
+        var htmlCtrl = ctrlGroup?.FocusedControl?.AsHtml();
+        return htmlCtrl?.GetDocument();
+      }
+      catch (COMException) { }
+      catch (UnauthorizedAccessException) { }
 
-      var ctrlGroup = Svc.SM.UI.ElementWdw.ControlGroup;
-      var htmlCtrl = ctrlGroup?.FocusedControl?.AsHtml();
-      return htmlCtrl?.GetDocument();
-
+      return null;
     }
 
     public static List<IControlHtml> GetHtmlCtrls()
     {
-
       var ret = new List<IControlHtml>();
 
       var ctrlGroup = Svc.SM.UI.ElementWdw.ControlGroup;
-      if (ctrlGroup.IsNull())
+      if (ctrlGroup == null)
         return ret;
 
       for (int i = 0; i < ctrlGroup.Count; i++)
       {
         var htmlCtrl = ctrlGroup[i].AsHtml();
-        if (!htmlCtrl.IsNull())
+        if (htmlCtrl != null)
           ret.Add(htmlCtrl);
       }
 
       return ret;
-
     }
 
     /// <summary>
@@ -116,15 +94,20 @@ namespace SuperMemoAssistant.Plugins.Autocompleter
     /// <returns>IHTMLWindow2 object or null</returns>
     public static IHTMLWindow2 GetFocusedHtmlWindow()
     {
+      try
+      {
+        var ctrlGroup = Svc.SM.UI.ElementWdw.ControlGroup;
+        var htmlCtrl = ctrlGroup?.FocusedControl?.AsHtml();
+        var htmlDoc = htmlCtrl?.GetDocument();
+        if (htmlDoc == null)
+          return null;
 
-      var ctrlGroup = Svc.SM.UI.ElementWdw.ControlGroup;
-      var htmlCtrl = ctrlGroup?.FocusedControl?.AsHtml();
-      var htmlDoc = htmlCtrl?.GetDocument();
-      if (htmlDoc == null)
-        return null;
+        return htmlDoc.parentWindow;
+      }
+      catch (COMException) { }
+      catch (UnauthorizedAccessException) { }
 
-      return htmlDoc.parentWindow;
-
+      return null;
     }
   }
 }

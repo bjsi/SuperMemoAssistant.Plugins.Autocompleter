@@ -1,15 +1,25 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Drawing;
-using System.Linq;
+﻿using mshtml;
+using SuperMemoAssistant.Extensions;
+using SuperMemoAssistant.Interop.SuperMemo.Content.Controls;
+using SuperMemoAssistant.Services;
+using System;
 using System.Runtime.InteropServices;
-using System.Text;
-using System.Threading.Tasks;
+using System.Windows;
 
 namespace SuperMemoAssistant.Plugins.Autocompleter
 {
   public static class CaretPos
   {
+
+    [DllImport("user32.dll")]
+    static extern bool GetCaretPos(out Point lpPoint);
+
+    /*- Converts window specific point to screen specific -*/
+    [DllImport("user32.dll")]
+    public static extern bool ClientToScreen(IntPtr hWnd, out Point position);
+
+    [DllImport("user32.dll")]
+    public static extern bool ScreenToClient(IntPtr hWnd, out Point position);
 
     /// <summary>
     /// Evaluates Cursor Position
@@ -25,7 +35,6 @@ namespace SuperMemoAssistant.Plugins.Autocompleter
       caretPosition.Y = (int)guiInfo.rcCaret.Bottom;
 
       return caretPosition;
-
     }
 
     private static GUITHREADINFO GetCaretPosition()
