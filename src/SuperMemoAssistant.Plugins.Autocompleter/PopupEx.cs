@@ -81,51 +81,29 @@ namespace SuperMemoAssistant.Plugins.Autocompleter
       catch (COMException) { }
 
     }
-
-    public void HandleKeydownInput(HtmlKeyInfo key)
-    {
-      var keyCode = key.keyCode;
-      if (keyCode == 27) // ESC
-      {
-        Hide();
-      }
-      else if (keyCode == 38) // Arrow Up
-      {
-        SelectPreviousItem();
-      }
-      else if (keyCode == 40)
-      {
-        SelectNextItem(); // Arrow Down
-      }
-      else if (keyCode == 39)
-      {
-        InsertSelectedItem(); // Arrow Right
-      }
-    }
-
-    private void InsertSelectedItem()
+    public bool InsertSelectedItem()
     {
       try
       {
         string word = null;
 
         if (_popup == null)
-          return;
+          return false;
 
         var selItem = GetSelectedItem();
         if (selItem == null)
-          return;
+          return false;
 
         var selObj = ContentUtils.GetSelectionObject();
         if (selObj == null)
-          return;
+          return false;
 
         // Replace the last partial word
         while (selObj.moveStart("character", -1) == -1)
         {
 
           if (string.IsNullOrEmpty(selObj.text))
-            return;
+            return false;
 
           char first = selObj.text.First();
           if (char.IsWhiteSpace(first))
@@ -145,12 +123,21 @@ namespace SuperMemoAssistant.Plugins.Autocompleter
 
         Hide();
         selObj.text = word;
-        return;
+        if (word.Contains("<++>"))
+        {
+          var sel = ContentUtils.GetSelectionObject();
+          sel.moveEnd("character", -word.Length);
+          sel.select();
+        }
+
+        return true;
 
       }
       catch (RemotingException) { }
       catch (UnauthorizedAccessException) { }
       catch (COMException) { }
+
+      return false;
 
     }
 
@@ -189,7 +176,6 @@ namespace SuperMemoAssistant.Plugins.Autocompleter
 
           menuItem.setAttribute("selected", 0);
 
-          // TODO: textLength race condition.
           menuItem.innerHTML = "<span style='color: orange;'>" +
                                  "<B>" +
                                    match.Substring(0, textLength) +
@@ -220,8 +206,7 @@ namespace SuperMemoAssistant.Plugins.Autocompleter
       }
     }
 
-
-    private IHTMLElement GetSelectedItem()
+    public IHTMLElement GetSelectedItem()
     {
 
       try
@@ -264,7 +249,7 @@ namespace SuperMemoAssistant.Plugins.Autocompleter
 
     }
 
-    private void SelectNextItem()
+    public void SelectNextItem()
     {
 
       try
@@ -345,7 +330,7 @@ namespace SuperMemoAssistant.Plugins.Autocompleter
 
     }
 
-    private void SelectPreviousItem()
+    public void SelectPreviousItem()
     {
 
       try

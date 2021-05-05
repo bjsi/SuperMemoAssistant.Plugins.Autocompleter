@@ -6,8 +6,10 @@ using SuperMemoAssistant.Extensions;
 using SuperMemoAssistant.Interop.SuperMemo.Core;
 using SuperMemoAssistant.Services;
 using SuperMemoAssistant.Services.IO.HotKeys;
+using SuperMemoAssistant.Services.IO.Keyboard;
 using SuperMemoAssistant.Services.Sentry;
 using SuperMemoAssistant.Services.UI.Configuration;
+using SuperMemoAssistant.Sys.IO.Devices;
 using SuperMemoAssistant.Sys.Remoting;
 using System;
 using System.Collections.Generic;
@@ -16,7 +18,9 @@ using System.Linq;
 using System.Reactive.Concurrency;
 using System.Reactive.Linq;
 using System.Runtime.InteropServices;
-using System.Windows;
+using System.Runtime.Remoting;
+using System.Windows.Forms;
+using System.Windows.Input;
 using static SuperMemoAssistant.Plugins.Autocompleter.HtmlEventEx;
 
 #region License & Metadata
@@ -91,6 +95,7 @@ namespace SuperMemoAssistant.Plugins.Autocompleter
       ["prod ×"] = "×",
       ["empty Ø"] = "Ø",
       ["ints ℤ"] = "ℤ",
+      ["set { ... | ... }"] = "<++> = { <++> | <++> }",
     };
 
     public bool Enabled { get; set; } = true;
@@ -125,13 +130,63 @@ namespace SuperMemoAssistant.Plugins.Autocompleter
       CreateInitialSuggestions();
 
       Svc.SM.UI.ElementWdw.OnElementChanged += new ActionProxy<SMDisplayedElementChangedEventArgs>(OnElementChanged);
+      Svc.KeyboardHotKey.RegisterHotKey(new HotKey(Key.Tab), OnTabPressed, HotKeyScopes.SMBrowser);
+      Svc.KeyboardHotKey.RegisterHotKey(new HotKey(Key.Tab, KeyModifiers.Shift), OnShiftTabPressed, HotKeyScopes.SMBrowser);
 
       base.OnSMStarted(wasSMAlreadyStarted);
+
+    }
+
+    private bool SelectPlaceholder(bool forward = true)
+    {
+      var selObj = ContentUtils.GetSelectionObject();
+      if (selObj != null)
+      {
+        selObj.collapse(!forward);
+        if (selObj.findText("<++>", Flags: forward ? 0 : 1))
+        {
+          selObj.select();
+          return true;
+        }
+      }
+      return false;
+    }
+
+    private void OnShiftTabPressed()
+    {
+      if (!SelectPlaceholder(false))
+        Svc.SM.UI.ElementWdw.SendKeys(new HotKey(Key.Tab, KeyModifiers.Shift));
+    }
+
+    private void OnTabPressed()
+    {
+      if (CurrentPopup == null || !CurrentPopup.IsOpen())
+      {
+        if (!SelectPlaceholder())
+        {
+          Svc.SM.UI.ElementWdw.SendKeys(new HotKey(Key.Tab));
+        }
+      }
+      else if (CurrentPopup.IsOpen() && CurrentPopup.GetSelectedItem() == null)
+      {
+        if (!SelectPlaceholder())
+        {
+          Svc.SM.UI.ElementWdw.SendKeys(new HotKey(Key.Tab));
+          return;
+        }
+
+        CurrentPopup.Hide();
+      }
+      else
+      {
+        CurrentPopup.InsertSelectedItem();
+      }
     }
 
     public void Disable()
     {
       Enabled = false;
+      CurrentPopup?.Hide();
     }
 
     public void Enable()
@@ -156,6 +211,7 @@ namespace SuperMemoAssistant.Plugins.Autocompleter
           new StringEntry<string>("prod ×", "prod ×"),
           new StringEntry<string>("empty Ø", "empty Ø"),
           new StringEntry<string>("ints ℤ", "ints ℤ"),
+          new StringEntry<string>("set { ... | ... }", "set { ... | ... }"),
         });
         CurrentSuggestions = BaseSuggestions.Copy();
       }
@@ -227,6 +283,8 @@ namespace SuperMemoAssistant.Plugins.Autocompleter
 
     private void SubscribeToHtmlEvents()
     {
+      CurrentPopup = null;
+
       var htmlCtrls = ContentUtils.GetHtmlCtrls();
       if (htmlCtrls == null)
         return;
@@ -299,35 +357,55 @@ namespace SuperMemoAssistant.Plugins.Autocompleter
       if (ev == null)
         return;
 
-      var key = new HtmlKeyInfo(ev);
-
-      bool esc = key.keyCode == 27;
-      bool arrowUp = key.keyCode == 38;
-      bool arrowDown = key.keyCode == 40;
-      bool arrowRight = key.keyCode == 39;
-
       if (CurrentPopup == null|| !CurrentPopup.IsOpen())
         return;
 
-      if (!(arrowDown || arrowRight || arrowUp || esc))
+      var info = new HtmlKeyInfo(ev);
+      if (info.Key == Keys.None)
         return;
 
-      ev.returnValue = false;
-      CurrentPopup.HandleKeydownInput(key);
+      if (info.Key == Keys.Escape)
+      {
+        CurrentPopup?.Hide();
+        ev.returnValue = false;
+      }
+      else if ((info.Key == Keys.Up && info.Modifiers == KeyModifiers.None)
+        || (info.Key == Keys.K && info.Modifiers == KeyModifiers.Ctrl))
+      {
+        CurrentPopup?.SelectPreviousItem();
+        ev.returnValue = false;
+      }
+      else if ((info.Key == Keys.Down && info.Modifiers == KeyModifiers.None)
+        || (info.Key == Keys.J && info.Modifiers == KeyModifiers.Ctrl))
+      {
+        CurrentPopup?.SelectNextItem();
+        ev.returnValue = false;
+      }
+      else if ((info.Key == Keys.Right && info.Modifiers == KeyModifiers.None)
+        || info.Key == Keys.Tab)
+      {
+        CurrentPopup?.InsertSelectedItem();
+        ev.returnValue = false;
+      }
     }
 
-    private void HandleKeyUp(HtmlKeyInfo key)
+    private void HandleKeyUp(HtmlKeyInfo info)
     {
       if (!Enabled) return;
-      // Right Arrow
-      // Up Arrow
-      // Down Arrow 
-      if (new[] { 39, 38, 40 }.Contains(key.keyCode))
+
+      if (info.Key == Keys.None || info.Modifiers != KeyModifiers.None || info.Key == Keys.Escape)
+        return;
+
+      if ((info.Key == Keys.Up)
+       || info.Key == Keys.Right
+       || info.Key == Keys.Down 
+       || (info.Key == Keys.J && info.Modifiers == KeyModifiers.Ctrl) 
+       || (info.Key == Keys.K && info.Modifiers == KeyModifiers.Ctrl))
       {
         LogTo.Debug("KeyUp: Ignoring because it was an arrow key.");
         return;
       }
-      else if (key.keyCode == 27)
+      else if (info.Key == Keys.Escape)
       {
         LogTo.Debug("KeyUp: Escape pressed, closing popup");
         CurrentPopup?.Hide();
@@ -367,17 +445,21 @@ namespace SuperMemoAssistant.Plugins.Autocompleter
     private void ShowNewAutocompleteWdw(IEnumerable<string> matches, string lastWord)
     {
 
-      Application.Current.Dispatcher.BeginInvoke((Action)(() =>
+      System.Windows.Application.Current.Dispatcher.BeginInvoke((Action)(() =>
       {
+        try
+        {
+          var wdw = ContentUtils.GetFocusedHtmlWindow() as IHTMLWindow4;
+          var htmlDoc = ((IHTMLWindow2)wdw)?.document;
+          if (wdw == null || htmlDoc == null)
+            return;
 
-        var wdw = ContentUtils.GetFocusedHtmlWindow() as IHTMLWindow4;
-        var htmlDoc = ((IHTMLWindow2)wdw)?.document;
-        if (wdw == null || htmlDoc == null)
-          return;
-
-        LogTo.Debug("Creating and showing a new Autocomplete popup");
-        CurrentPopup = wdw.CreatePopup();
-        CurrentPopup.Show(matches, lastWord);
+          LogTo.Debug("Creating and showing a new Autocomplete popup");
+          CurrentPopup = wdw.CreatePopup();
+          CurrentPopup.Show(matches, lastWord);
+        }
+        catch (UnauthorizedAccessException) { }
+        catch (RemotingException) { }
       }));
     }
 
