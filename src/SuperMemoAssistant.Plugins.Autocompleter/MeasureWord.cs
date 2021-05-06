@@ -42,25 +42,6 @@ namespace SuperMemoAssistant.Plugins.Autocompleter
       return stringSize == null
         ? -1
         : stringSize.Width;
-
-    }
-
-    public static LastPartialWord CalculateLastPartialWord(IHTMLTxtRange selObj)
-    {
-
-      // Get font name and size
-      string fontname = selObj.QueryFontName();
-      var fontSizeIE = selObj.QueryFontSize();
-
-      // Convert IE font size to pixels
-      int fontSizePx = IEFontSizeToPixels[fontSizeIE];
-
-      int width = (int)GetWordWidth(selObj.text, fontSizePx, fontname);
-
-      return width == -1 
-        ? null
-        : new LastPartialWord(selObj.text, width);
-
     }
   }
 }

@@ -417,29 +417,29 @@ namespace SuperMemoAssistant.Plugins.Autocompleter
         return;
 
       var lastWord = ContentUtils.GetLastPartialWord(selObj);
-      if (lastWord == null || string.IsNullOrEmpty(lastWord.Text))
+      if (lastWord == null || string.IsNullOrEmpty(lastWord))
       {
         CurrentPopup?.Hide();
         return;
       }
 
-      var matches = CurrentSuggestions.GetWords(lastWord.Text);
+      var matches = CurrentSuggestions.GetWords(lastWord);
       if (matches == null || !matches.Any())
       {
         CurrentPopup?.Hide();
         return;
       }
 
-      if (matches.Count() == 1 && matches.First() == lastWord.Text)
+      if (matches.Count() == 1 && matches.First() == lastWord)
       {
         CurrentPopup?.Hide();
         return;
       }
 
       if (CurrentPopup == null)
-        ShowNewAutocompleteWdw(matches, lastWord.Text);
+        ShowNewAutocompleteWdw(matches, lastWord);
       else
-        CurrentPopup?.Show(matches, lastWord.Text);
+        CurrentPopup?.Show(matches, lastWord);
     }
 
     private void ShowNewAutocompleteWdw(IEnumerable<string> matches, string lastWord)

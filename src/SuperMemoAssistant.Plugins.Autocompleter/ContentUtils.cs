@@ -16,7 +16,7 @@ namespace SuperMemoAssistant.Plugins.Autocompleter
       return selObj;
     }
 
-    public static  LastPartialWord GetLastPartialWord(IHTMLTxtRange selObj)
+    public static string GetLastPartialWord(IHTMLTxtRange selObj)
     {
       if (selObj == null)
         return null;
@@ -25,7 +25,7 @@ namespace SuperMemoAssistant.Plugins.Autocompleter
       if (selected == null)
         return null;
 
-      return MeasureWord.CalculateLastPartialWord(selected);
+      return selected.text;
     }
 
     /// <summary>
