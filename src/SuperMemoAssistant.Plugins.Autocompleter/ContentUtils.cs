@@ -99,10 +99,7 @@ namespace SuperMemoAssistant.Plugins.Autocompleter
         var ctrlGroup = Svc.SM.UI.ElementWdw.ControlGroup;
         var htmlCtrl = ctrlGroup?.FocusedControl?.AsHtml();
         var htmlDoc = htmlCtrl?.GetDocument();
-        if (htmlDoc == null)
-          return null;
-
-        return htmlDoc.parentWindow;
+        return htmlDoc?.parentWindow;
       }
       catch (COMException) { }
       catch (UnauthorizedAccessException) { }
